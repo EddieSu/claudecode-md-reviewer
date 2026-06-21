@@ -1,0 +1,48 @@
+{
+  "name": "claudecode-md-reviewer",
+  "version": "0.1.0",
+  "description": "Local, zero-dependency Markdown review loop: produce a .md, annotate it in the browser, read the annotations back. Built for the Claude Code workflow, useful for any human-in-the-loop Markdown review.",
+  "bin": {
+    "md-reviewer": "bin/md-reviewer.js"
+  },
+  "files": [
+    "bin/",
+    "server.cjs",
+    "reviewer.html",
+    "reviewer.css",
+    "reviewer.js",
+    "pins.example.json",
+    "README.md",
+    "README.zh-Hant.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {},
+  "scripts": {
+    "start": "node bin/md-reviewer.js",
+    "demo": "node bin/md-reviewer.js DEMO.md"
+  },
+  "keywords": [
+    "markdown",
+    "review",
+    "annotation",
+    "claude",
+    "claude-code",
+    "cli",
+    "local",
+    "review-loop"
+  ],
+  "license": "MIT",
+  "author": "Eddie Su",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/EddieSu/claudecode-md-reviewer.git"
+  },
+  "homepage": "https://github.com/EddieSu/claudecode-md-reviewer#readme",
+  "bugs": {
+    "url": "https://github.com/EddieSu/claudecode-md-reviewer/issues"
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "_comment": "Pinned global documents for the reviewer sidebar. To use your own pins, copy this file to ~/.md-reviewer/pins.json and edit it there (do NOT edit this bundled example). Each entry is either a single .md file or a directory (only its immediate .md children are listed, non-recursive). A leading ~ expands to your home directory.",
+  "_examples": [
+    "~/notes/README.md",
+    "~/Documents/specs"
+  ],
+  "pins": []
+}

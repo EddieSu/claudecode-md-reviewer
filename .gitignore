@@ -1,0 +1,16 @@
+node_modules/
+
+# User-writable config/data lives in ~/.md-reviewer/ — never commit a personal pins.json
+pins.json
+.md-reviewer/
+
+# Review sidecars are user annotations; keep only the DEMO sample as a fixture
+*.review.json
+!DEMO.review.json
+
+# OpenSpec's Claude Code slash commands/skills — generic tooling, regenerable via `openspec init`
+.claude/
+
+# OS cruft
+.DS_Store
+Thumbs.db

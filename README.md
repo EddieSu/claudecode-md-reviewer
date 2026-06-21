@@ -1,0 +1,170 @@
+# claudecode-md-reviewer
+
+A local, zero-dependency **Markdown review loop**: an AI (or anyone) produces a
+`.md`, you select text and annotate it in your browser, and the annotations are
+saved next to the file so the author can read them back and continue.
+
+> 繁體中文版說明見 [README.zh-Hant.md](./README.zh-Hant.md).
+
+Built for the **Claude Code** workflow — "Claude writes a doc → you mark it up →
+Claude reads your notes and revises" — but it works for any human-in-the-loop
+Markdown review.
+
+## Why it's not just a viewer
+
+It runs a tiny **on-demand local server** (`server.cjs`) that reads and writes
+files directly, so opening a document **loads it instantly, with zero
+permission clicks, from any path**. Annotations are saved as a sibling
+`*.review.json` file that the author (or your AI) can read directly. The server
+binds `127.0.0.1` only, protects its API with a per-run token, and exits after
+30 minutes idle — it is not a always-on daemon.
+
+## Requirements
+
+- **Node.js >= 18** on your PATH.
+- A modern browser (Edge / Chrome / Firefox / Safari — plain HTTP + fetch).
+
+## Install & run
+
+```bash
+# one-off, no install
+npx claudecode-md-reviewer path/to/file.md
+
+# or install globally, then use the `md-reviewer` command
+npm install -g claudecode-md-reviewer
+md-reviewer path/to/file.md
+
+# open the reviewer with no file (paste a path in the bar)
+md-reviewer
+```
+
+From a clone:
+
+```bash
+git clone https://github.com/EddieSu/claudecode-md-reviewer.git
+cd claudecode-md-reviewer
+node bin/md-reviewer.js DEMO.md   # or: npm run demo
+```
+
+The CLI ensures the local server is running (starting it in the background if
+needed), enqueues your file, and opens the default browser. On a headless / WSL
+/ SSH environment where no browser launcher exists, it prints the URL for you to
+open manually.
+
+## How to use
+
+1. Run `md-reviewer <file.md>` (or double-click `open-reviewer.cmd` on Windows
+   and paste a path).
+2. **Select text** in the article → an annotation box pops up → pick a color,
+   write your comment → **Add** (or `Ctrl+Enter`).
+3. Annotations auto-save to `<file>.review.json` in the same folder; the header
+   shows "已自動儲存" (saved).
+4. The author reads `<file>.review.json` and acts on each open annotation. Or
+   click **📋 Copy for Claude** to copy unresolved notes as plain text and paste
+   them straight back into your AI chat.
+
+## Sidebar: review queue, history, pinned docs
+
+Toggle the left panel with **☰**. Each row shows the filename, its
+`folder · project` tag, and an unresolved-annotation badge. Three sections:
+
+- **📥 Review queue** — documents pushed to you this session via the CLI.
+  Cleared when the server restarts (= one session).
+- **🕘 History** — documents you've opened, most-recent first, up to 50,
+  persisted across sessions in `~/.md-reviewer/history.json`.
+- **📌 Pinned docs** — a whitelist of documents you always want one click away.
+
+### Configuring pinned docs
+
+Pins are read from `~/.md-reviewer/pins.json` if it exists, otherwise from the
+bundled `pins.example.json` (which ships empty). To set your own:
+
+```bash
+# copy the example to your user config and edit it
+mkdir -p ~/.md-reviewer
+cp "$(npm root -g)/claudecode-md-reviewer/pins.example.json" ~/.md-reviewer/pins.json
+```
+
+```json
+{
+  "pins": [
+    "~/notes/README.md",
+    "~/Documents/specs"
+  ]
+}
+```
+
+Each entry is a single `.md` file or a directory (only its immediate `.md`
+children are listed, non-recursive). A leading `~` expands to your home
+directory. Each file is auto-tagged with the name of the nearest ancestor
+containing `.git`, and you can filter the sidebar by project tag.
+
+## Using it with Claude Code (or any AI)
+
+The loop shines when your AI drives it. Add an instruction like this to your
+agent's system / project prompt:
+
+> After producing a substantial `.md`, run
+> `npx claudecode-md-reviewer "<absolute path to the md>"` so the user can
+> annotate it. When the user says "continue from my review", read the sibling
+> `<base>.review.json`, process every annotation with `status: "open"` using its
+> `line` + `quote` to locate the text, and revise per the `comment`. Do not edit
+> the `.review.json` yourself — report which items you handled and let the user
+> mark them resolved.
+
+### Annotation file format (`*.review.json`)
+
+```json
+{
+  "file": "design.md",
+  "schema": 1,
+  "updatedAt": "2026-06-21T03:40:00.000Z",
+  "annotations": [
+    {
+      "line": 42,
+      "quote": "this logic is wrong",
+      "comment": "check for null first",
+      "color": "yellow",
+      "status": "open",
+      "id": "a...",
+      "createdAt": "..."
+    }
+  ]
+}
+```
+
+- `line` — 1-based line in the source `.md` (start of the block the text is in).
+- `quote` — the selected text, so the author can locate it.
+- `comment` — your review note.
+- `status` — `open` (todo) or `resolved`.
+
+## Architecture & security
+
+- `server.cjs` — Node HTTP server, `listen('127.0.0.1', 8771)` only. Endpoints:
+  `GET /api/file`, `POST /api/save`, `GET /api/sidebar`, `POST /api/enqueue`,
+  `POST /api/dequeue`, `GET /api/ping`.
+- Front end split into `reviewer.html` + `reviewer.css` + `reviewer.js`
+  (the latter two served from `/reviewer.css` and `/reviewer.js`, no token).
+- **Token** — a random token generated at startup, written only to a temp file
+  (`md-reviewer-server.json`) for the launcher; the browser reads it from the
+  URL, and `/api/*` requires it, blocking forged requests from other local tabs.
+- **Host check** — only accepts `Host: 127.0.0.1:8771` / `localhost:8771`,
+  blocking DNS rebinding.
+- **Idle shutdown** — exits after 30 minutes with no requests.
+
+## Known limitations
+
+- Requires Node.js on PATH. Port `8771` is fixed (an env override may come later).
+- Highlighting is precise for a selected fragment; selecting **across** bold /
+  links / multiple paragraphs falls back to highlighting the whole block (the
+  line number stays correct, so annotating and locating are unaffected).
+- Lightweight custom Markdown renderer — does **not** support: GFM tables without
+  a leading `|`, escaped pipes `\|` inside tables, setext headings (`===`/`---`),
+  ordered-list custom start numbers, or inline HTML. These are display-only
+  differences and don't affect annotation locating. Supported: headings,
+  emphasis, inline / fenced code, lists (nested, task), quotes, tables, rules,
+  links, images, HTML comments.
+
+## License
+
+[MIT](./LICENSE) © Eddie Su
