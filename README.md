@@ -54,7 +54,8 @@ open manually.
 ## How to use
 
 1. Run `md-reviewer <file.md>` (or double-click `open-reviewer.cmd` on Windows
-   and paste a path).
+   and paste a path). You can also click the **…** button next to the path input
+   to open an in-app file browser and pick a `.md` file.
 2. **Select text** in the article → an annotation box pops up → pick a color,
    write your comment → **Add** (or `Ctrl+Enter`).
 3. Annotations auto-save to `<file>.review.json` in the same folder; the header
@@ -63,13 +64,19 @@ open manually.
    click **📋 Copy for Claude** to copy unresolved notes as plain text and paste
    them straight back into your AI chat.
 
-## Sidebar: review queue, history, pinned docs
+## Sidebar: queue, favorites, history, pinned docs
 
-Toggle the left panel with **☰**. Each row shows the filename, its
-`folder · project` tag, and an unresolved-annotation badge. Three sections:
+Toggle the left panel with **☰** and the right annotations panel with **💬**
+(both states persist). Each row shows the filename, its `folder · project` tag,
+an unresolved-annotation badge, and a ⭐ star to favorite it. The favorites /
+history / pinned section headers collapse (history and pinned start collapsed).
+Sections:
 
 - **📥 Review queue** — documents pushed to you this session via the CLI.
   Cleared when the server restarts (= one session).
+- **⭐ Favorites** — click the star on any row to bookmark a document. Favorites
+  persist server-side in `~/.md-reviewer/favorites.json` (so they survive browser
+  and machine changes) and are independent of pins.
 - **🕘 History** — documents you've opened, most-recent first, up to 50,
   persisted across sessions in `~/.md-reviewer/history.json`.
 - **📌 Pinned docs** — a whitelist of documents you always want one click away.
@@ -98,6 +105,25 @@ Each entry is a single `.md` file or a directory (only its immediate `.md`
 children are listed, non-recursive). A leading `~` expands to your home
 directory. Each file is auto-tagged with the name of the nearest ancestor
 containing `.git`, and you can filter the sidebar by project tag.
+
+## Language
+
+The interface ships in **English** and **Traditional Chinese**, with a language
+selector in the header bar. On first run it auto-detects your browser language;
+your choice is then remembered (`localStorage`).
+
+**Add your own language** by dropping a single JSON file into
+`~/.md-reviewer/locales/` — it appears in the selector automatically, with no
+edit to the installed files:
+
+```bash
+mkdir -p ~/.md-reviewer/locales
+cp "$(npm root -g)/claudecode-md-reviewer/locales/en.json" ~/.md-reviewer/locales/fr.json
+# translate the values in fr.json; set "_name" to the display name, e.g. "Français"
+```
+
+Missing keys fall back to English, so a partial translation works. A user file
+whose code matches a bundled locale overrides it.
 
 ## Using it with Claude Code (or any AI)
 
@@ -142,7 +168,8 @@ agent's system / project prompt:
 
 - `server.cjs` — Node HTTP server, `listen('127.0.0.1', 8771)` only. Endpoints:
   `GET /api/file`, `POST /api/save`, `GET /api/sidebar`, `POST /api/enqueue`,
-  `POST /api/dequeue`, `GET /api/ping`.
+  `POST /api/dequeue`, `POST /api/favorite`, `GET /api/locales`, `GET /api/locale`,
+  `GET /api/browse`, `GET /api/ping`.
 - Front end split into `reviewer.html` + `reviewer.css` + `reviewer.js`
   (the latter two served from `/reviewer.css` and `/reviewer.js`, no token).
 - **Token** — a random token generated at startup, written only to a temp file
@@ -154,7 +181,8 @@ agent's system / project prompt:
 
 ## Known limitations
 
-- Requires Node.js on PATH. Port `8771` is fixed (an env override may come later).
+- Requires Node.js on PATH. Port defaults to `8771`; set `MDR_PORT` to run on
+  another port (e.g. a second instance alongside a running one).
 - Highlighting is precise for a selected fragment; selecting **across** bold /
   links / multiple paragraphs falls back to highlighting the whole block (the
   line number stays correct, so annotating and locating are unaffected).
@@ -163,7 +191,8 @@ agent's system / project prompt:
   ordered-list custom start numbers, or inline HTML. These are display-only
   differences and don't affect annotation locating. Supported: headings,
   emphasis, inline / fenced code, lists (nested, task), quotes, tables, rules,
-  links, images, HTML comments.
+  links, images, HTML comments, and **mermaid** diagrams (` ```mermaid `,
+  rendered from a bundled offline build).
 
 ## License
 

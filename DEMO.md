@@ -44,3 +44,15 @@ function review(doc) {
 ---
 
 改完記得跟我說一聲,我依你的審閱意見續做。
+
+## Mermaid 圖表
+
+支援 ` ```mermaid ` 圖表（內建離線渲染,不對外連線）:
+
+```mermaid
+flowchart LR
+  A[Claude 產出 .md] --> B[你選字加註]
+  B --> C[存 *.review.json]
+  C --> D[Claude 讀回續做]
+  D --> A
+```

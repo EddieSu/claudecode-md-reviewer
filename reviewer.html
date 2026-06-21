@@ -1,62 +1,66 @@
 <!DOCTYPE html>
-<html lang="zh-Hant">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>MD Reviewer — Claude 審閱器</title>
+<title>MD Reviewer</title>
 <link rel="stylesheet" href="reviewer.css">
 </head>
 <body>
   <div id="bar">
     <span class="title">📝 MD Reviewer</span>
-    <button id="navToggle" title="顯示/隱藏左側巡覽">☰</button>
-    <input id="pathInput" placeholder="貼上 .md 絕對路徑後按 Enter…">
-    <button id="btnOpen">開啟</button>
-    <button id="btnReload" title="重新載入目前檔案">↻</button>
+    <button id="navToggle" data-i18n-title="bar.navToggle" title="Show/hide the left list">☰</button>
+    <input id="pathInput" data-i18n-ph="bar.pathPlaceholder" placeholder="Paste an absolute .md path and press Enter…">
+    <button id="btnPick" data-i18n-title="bar.pick" title="Browse for a .md file…">…</button>
+    <button id="btnReload" data-i18n-title="bar.reload" title="Reload current file">↻</button>
     <span class="file" id="fileName"></span>
     <span class="spacer"></span>
+    <select id="lang" data-i18n-title="bar.lang" title="Language"></select>
     <span class="badge" id="saveBadge"></span>
-    <button id="btnCopy" title="把所有未解決註解複製成純文字,貼回給 Claude">📋 複製給 Claude</button>
-    <button id="btnExport" title="下載 .review.json">⬇ 匯出</button>
+    <button id="btnCopy" data-i18n="bar.copy" data-i18n-title="bar.copyTitle" title="Copy all unresolved annotations as plain text to paste back">📋 Copy for Claude</button>
+    <button id="btnExport" data-i18n="bar.export" data-i18n-title="bar.exportTitle" title="Download .review.json">⬇ Export</button>
+    <button id="sideToggle" data-i18n-title="bar.sideToggle" title="Show/hide the annotations panel">💬</button>
   </div>
   <div id="main">
     <div id="nav">
       <div id="navHead">
-        <span class="navTitle">審閱清單</span>
+        <span class="navTitle" data-i18n="nav.title">Review list</span>
         <span class="spacer" style="flex:1"></span>
-        <button id="navRefresh" title="重新整理清單">↻</button>
+        <button id="navRefresh" data-i18n-title="nav.refresh" title="Refresh list">↻</button>
       </div>
       <div id="tagBar"></div>
       <div id="navBody">
         <div class="navsec" id="fSec" style="display:none">
-          <div class="navsec-h">🔍 篩選:<span id="fLabel"></span> <span class="navsec-n" id="fCount">0</span></div>
+          <div class="navsec-h"><span data-i18n="nav.filterLabel">🔍 Filter:</span> <span id="fLabel"></span> <span class="navsec-n" id="fCount">0</span></div>
           <div id="fList" class="navsec-list"></div>
         </div>
         <div class="navsec">
-          <div class="navsec-h">📥 本次待審 <span class="navsec-n" id="qCount">0</span></div>
+          <div class="navsec-h"><span data-i18n="nav.queue">📥 To review</span> <span class="navsec-n" id="qCount">0</span></div>
           <div id="qList" class="navsec-list"></div>
         </div>
         <div class="navsec">
-          <div class="navsec-h">🕘 過往紀錄</div>
+          <div class="navsec-h navsec-toggle" data-sec="fav"><span class="caret">▾</span><span data-i18n="nav.favorites">⭐ Favorites</span></div>
+          <div id="favList" class="navsec-list"></div>
+        </div>
+        <div class="navsec">
+          <div class="navsec-h navsec-toggle" data-sec="hist"><span class="caret">▾</span><span data-i18n="nav.history">🕘 History</span></div>
           <div id="hList" class="navsec-list"></div>
         </div>
         <div class="navsec">
-          <div class="navsec-h">📌 Claude 全域文件</div>
+          <div class="navsec-h navsec-toggle" data-sec="pin"><span class="caret">▾</span><span data-i18n="nav.pinned">📌 Pinned docs</span></div>
           <div id="pList" class="navsec-list"></div>
         </div>
       </div>
     </div>
 
-    <div id="doc"><div id="docInner"><div class="empty">
-      等待 Claude 開啟文件…<br>
-      （它產出有份量的 .md 後會自動開好;你也可在上方貼 .md 絕對路徑手動開啟）<br>
-      選取文章中的文字 → 跳出加註框 → 寫評論,註解自動存成同目錄的 <kbd>檔名.review.json</kbd>。
+    <div id="doc"><div id="docInner"><div class="empty" data-i18n-html="doc.empty">
+      Waiting for a document…
     </div></div></div>
     <div id="side">
       <div id="sideHead">
-        <h3>審閱註解</h3>
+        <h3 data-i18n="side.title">Annotations</h3>
         <span class="spacer" style="flex:1"></span>
-        <label style="font-size:12px;color:var(--muted)"><input type="checkbox" id="showResolved" style="width:auto"> 顯示已解決</label>
+        <label style="font-size:12px;color:var(--muted)"><input type="checkbox" id="showResolved" style="width:auto"> <span data-i18n="side.showResolved">Show resolved</span></label>
       </div>
       <div id="sideList"></div>
     </div>
@@ -65,10 +69,20 @@
   <div id="pop">
     <div class="quote" id="popQuote"></div>
     <div class="swatches" id="popSwatch"></div>
-    <textarea id="popText" placeholder="寫下你的審閱意見…(Ctrl+Enter 儲存)"></textarea>
+    <textarea id="popText" data-i18n-ph="pop.placeholder" placeholder="Write your review comment… (Ctrl+Enter to save)"></textarea>
     <div class="row">
-      <button id="popCancel">取消</button>
-      <button id="popSave" class="primary">加註</button>
+      <button id="popCancel" data-i18n="pop.cancel">Cancel</button>
+      <button id="popSave" class="primary" data-i18n="pop.save">Annotate</button>
+    </div>
+  </div>
+
+  <div id="browse" class="modal" style="display:none">
+    <div class="modal-box">
+      <div class="modal-head">
+        <span id="browsePath" class="browse-path"></span>
+        <button id="browseClose" title="Close">✕</button>
+      </div>
+      <div id="browseList" class="browse-list"></div>
     </div>
   </div>
 

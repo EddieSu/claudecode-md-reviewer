@@ -9,9 +9,9 @@ const os = require("os");
 const path = require("path");
 const { spawn } = require("child_process");
 
-const PORT = 8771;
+const PORT = Number(process.env.MDR_PORT) || 8771;    // 與 server.cjs 一致；MDR_PORT 可改埠
 const BASE = `http://127.0.0.1:${PORT}`;
-const INFO = path.join(os.tmpdir(), "md-reviewer-server.json");
+const INFO = path.join(os.tmpdir(), "md-reviewer-server"+(PORT===8771?"":"-"+PORT)+".json");
 const SERVER = path.join(__dirname, "..", "server.cjs");
 
 function fail(msg) { process.stderr.write(`md-reviewer: ${msg}\n`); process.exit(1); }
