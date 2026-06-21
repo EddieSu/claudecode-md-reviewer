@@ -77,15 +77,51 @@ function usage() {
   process.stdout.write(
     "claudecode-md-reviewer\n\n" +
     "Usage:\n" +
-    "  md-reviewer <file.md>   ensure server, enqueue the file, open the reviewer\n" +
-    "  md-reviewer             open the reviewer (paste a .md path in the bar)\n" +
-    "  md-reviewer -h          show this help\n"
+    "  md-reviewer <file.md>      ensure server, enqueue the file, open the reviewer\n" +
+    "  md-reviewer                open the reviewer (paste a .md path in the bar)\n" +
+    "  md-reviewer --hook [path]  install a Claude Code PostToolUse hook (default:\n" +
+    "                             ./.claude/settings.json) that auto-enqueues written .md\n" +
+    "  md-reviewer -h             show this help\n"
+  );
+}
+
+// Install a Claude Code PostToolUse hook that runs scripts/hook-open.mjs after a
+// Write, so newly written Markdown is auto-enqueued (only when the reviewer is open).
+function installHook(settingsPath) {
+  const handler = path.join(__dirname, "..", "scripts", "hook-open.mjs");
+  if (!fs.existsSync(handler)) fail(`hook handler not found: ${handler}`);
+  const target = settingsPath ? path.resolve(settingsPath) : path.join(process.cwd(), ".claude", "settings.json");
+  const cmd = `node "${handler}"`;
+  const existed = fs.existsSync(target);
+  let cfg = {};
+  if (existed) {
+    try { cfg = JSON.parse(fs.readFileSync(target, "utf8")); }
+    catch (e) { fail(`could not parse ${target}: ${e.message}`); }
+  }
+  cfg.hooks = cfg.hooks || {};
+  const list = cfg.hooks.PostToolUse = cfg.hooks.PostToolUse || [];
+  if (JSON.stringify(list).includes("hook-open.mjs")) {
+    process.stdout.write(`Hook already installed in ${target}\n`);
+  } else {
+    list.push({ matcher: "Write", hooks: [{ type: "command", command: cmd }] });
+    if (existed) { try { fs.copyFileSync(target, target + ".bak"); } catch (_) {} }
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    fs.writeFileSync(target, JSON.stringify(cfg, null, 2) + "\n");
+    process.stdout.write(`Installed PostToolUse hook into ${target}${existed ? ` (backup: ${target}.bak)` : ""}\n`);
+  }
+  process.stdout.write(
+    "\nFor the main trigger, also add this to your CLAUDE.md / agent prompt:\n\n" +
+    "  After producing a substantial .md, run:\n" +
+    '    npx claudecode-md-reviewer "<absolute path to the md>"\n' +
+    "  so the user can annotate it; then read the sibling <base>.review.json and\n" +
+    "  act on each annotation whose status is \"open\".\n"
   );
 }
 
 (async function main() {
   const arg = process.argv[2];
   if (arg === "-h" || arg === "--help") { usage(); return; }
+  if (arg === "--hook") { installHook(process.argv[3]); return; }
 
   let absPath = null;
   if (arg) {

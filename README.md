@@ -125,10 +125,16 @@ cp "$(npm root -g)/claudecode-md-reviewer/locales/en.json" ~/.md-reviewer/locale
 Missing keys fall back to English, so a partial translation works. A user file
 whose code matches a bundled locale overrides it.
 
-## Using it with Claude Code (or any AI)
+## Best workflow: wire it into your AI
 
-The loop shines when your AI drives it. Add an instruction like this to your
-agent's system / project prompt:
+The loop shines when your AI drives it. There are two layers — set up the first,
+add the second only if you want it.
+
+### 1. The trigger instruction (the main mechanism)
+
+The chain "AI produces a doc → reviewer opens" is driven by an **instruction**,
+not magic. Add this to your `CLAUDE.md` / agent system prompt — the model decides
+when a document is substantial enough to push:
 
 > After producing a substantial `.md`, run
 > `npx claudecode-md-reviewer "<absolute path to the md>"` so the user can
@@ -137,6 +143,40 @@ agent's system / project prompt:
 > `line` + `quote` to locate the text, and revise per the `comment`. Do not edit
 > the `.review.json` yourself — report which items you handled and let the user
 > mark them resolved.
+
+Because the reviewer **polls every 4 seconds**, you only need it open once; later
+pushes appear in the **📥 To review** list automatically.
+
+### 2. Optional: a deterministic Claude Code hook
+
+If you'd rather guarantee that **every** Markdown file written in a project gets
+queued (regardless of whether the model remembers), install a `PostToolUse` hook:
+
+```bash
+# from your project root — writes ./.claude/settings.json (backs up if present)
+npx claudecode-md-reviewer --hook
+# or target a specific settings file:
+npx claudecode-md-reviewer --hook /path/to/.claude/settings.json
+```
+
+This adds a hook that runs `scripts/hook-open.mjs` after a `Write`. The handler
+**only enqueues when the reviewer is already running** — it never starts a server
+or opens a browser on its own, so it stays silent during normal coding. Equivalent
+manual config:
+
+```json
+{
+  "hooks": {
+    "PostToolUse": [
+      { "matcher": "Write",
+        "hooks": [ { "type": "command", "command": "node \"<path>/scripts/hook-open.mjs\"" } ] }
+    ]
+  }
+}
+```
+
+Use the instruction (layer 1) for "review when it's worth it" and the hook
+(layer 2) for "always queue these"; they compose fine.
 
 ### Annotation file format (`*.review.json`)
 

@@ -3,6 +3,19 @@
 All notable changes to this project are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.4.0] - 2026-06-21
+
+### Added
+- **AI integration guide + setup script**. The README now documents the two-layer
+  workflow: (1) a trigger instruction for your `CLAUDE.md` / agent prompt — the
+  main mechanism — and (2) an optional deterministic Claude Code `PostToolUse`
+  hook.
+- `md-reviewer --hook [settings.json]` installs that hook (merges into
+  `./.claude/settings.json` by default, with a backup), pointing at the new
+  `scripts/hook-open.mjs` handler. The handler **only enqueues a written `.md`
+  when the reviewer is already running** — it never starts a server or opens a
+  browser, so it stays silent during normal coding.
+
 ## [0.3.0] - 2026-06-21
 
 ### Added

@@ -107,15 +107,51 @@ cp "$(npm root -g)/claudecode-md-reviewer/locales/en.json" ~/.md-reviewer/locale
 
 缺少的 key 會自動退回英文,所以翻一半也能用。使用者檔若與內建語言同 code,會覆蓋內建。
 
-## 搭配 Claude Code（或任何 AI）
+## 最佳工作流：接進你的 AI
 
-這個迴路在 AI 主動驅動時最有威力。把類似這段指示加進你的 agent 系統／專案 prompt：
+這個迴路在 AI 主動驅動時最有威力。分兩層——先設好第一層,需要再加第二層。
 
-> 產出有份量的 `.md` 後，執行
+### 1. 觸發指示（核心機制）
+
+「AI 產出文件 → 審閱器開」這個連鎖,靠的是**一條指示**,不是魔法。把這段加進你的
+`CLAUDE.md` / agent 系統 prompt——由模型判斷「夠不夠份量才推」:
+
+> 產出有份量的 `.md` 後,執行
 > `npx claudecode-md-reviewer "<該 md 的絕對路徑>"` 讓使用者加註。當使用者說
-> 「依審閱續做」時，讀同目錄的 `<base>.review.json`，逐條處理 `status` 為
-> `"open"` 的註解：用 `line` + `quote` 定位、依 `comment` 修改。**不要**自行改動
-> `.review.json`，回報哪幾條已處理即可，由使用者自行標記「已解決」。
+> 「依審閱續做」時,讀同目錄的 `<base>.review.json`,逐條處理 `status` 為
+> `"open"` 的註解:用 `line` + `quote` 定位、依 `comment` 修改。**不要**自行改動
+> `.review.json`,回報哪幾條已處理即可,由使用者自行標記「已解決」。
+
+因為審閱器**每 4 秒輪詢**,只要開著一次,之後的推送會自動冒進 **📥 本次待審**。
+
+### 2. 進階（可選）：Claude Code deterministic hook
+
+如果你要**保證**專案裡每個寫出的 Markdown 都進佇列(不靠模型記得),裝一個
+`PostToolUse` hook:
+
+```bash
+# 在專案根目錄——會寫 ./.claude/settings.json（已存在則先備份）
+npx claudecode-md-reviewer --hook
+# 或指定某個 settings 檔：
+npx claudecode-md-reviewer --hook /path/to/.claude/settings.json
+```
+
+它加的 hook 會在 `Write` 後跑 `scripts/hook-open.mjs`。這個 handler **只有在審閱器
+已經跑著時才把檔案塞進待審**——不會自己起 server、也不會彈瀏覽器,所以平常寫程式時
+完全安靜。等效的手動設定:
+
+```json
+{
+  "hooks": {
+    "PostToolUse": [
+      { "matcher": "Write",
+        "hooks": [ { "type": "command", "command": "node \"<path>/scripts/hook-open.mjs\"" } ] }
+    ]
+  }
+}
+```
+
+「值得才審」用第一層(模型判斷),「這些一律進佇列」用第二層(hook);兩者可並存。
 
 ### 註解檔格式（`*.review.json`）
 
