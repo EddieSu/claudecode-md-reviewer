@@ -1,6 +1,6 @@
 {
   "name": "claudecode-md-reviewer",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Local, zero-dependency Markdown review loop: produce a .md, annotate it in the browser, read the annotations back. Built for the Claude Code workflow, useful for any human-in-the-loop Markdown review.",
   "bin": {
     "md-reviewer": "bin/md-reviewer.js"

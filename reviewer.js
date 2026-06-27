@@ -184,11 +184,63 @@ async function renderMermaid(){
   let n=0;
   for(const el of nodes){
     const src=el.textContent;
-    try{ const {svg}=await mermaid.render("mmd"+(n++)+"_"+Math.floor(Math.random()*1e6), src); el.innerHTML=svg; }
+    try{ const {svg}=await mermaid.render("mmd"+(n++)+"_"+Math.floor(Math.random()*1e6), src); el.innerHTML=svg;
+      const btn=document.createElement("button"); btn.type="button"; btn.className="mm-zoom-btn"; btn.textContent="⛶";
+      btn.title=t("mermaid.zoom");
+      btn.addEventListener("click", ev=>{ ev.stopPropagation(); openMermaidModal(el.querySelector("svg")); });
+      el.appendChild(btn);
+      el.addEventListener("dblclick", ()=> openMermaidModal(el.querySelector("svg"))); }
     catch(e){ const pre=document.createElement("pre"); pre.setAttribute("data-line", el.getAttribute("data-line")||"");
       const c=document.createElement("code"); c.textContent=src; pre.appendChild(c); el.replaceWith(pre); }   // 壞圖 → 退回程式碼塊
   }
 }
+
+/* ───────────────────────── mermaid zoom modal (lightbox) ───────────────────────── */
+const mm={scale:1,tx:0,ty:0};                       // 縮放比例 + 平移位移(px)
+function applyMM(){
+  const c=$("#mmCanvas"); if(c) c.style.transform="translate("+mm.tx+"px,"+mm.ty+"px) scale("+mm.scale+")";
+  const z=$("#mmZoom"); if(z) z.textContent=Math.round(mm.scale*100)+"%";
+}
+function mmZoomAt(factor,cx,cy){                     // 以 (cx,cy) 為定點縮放
+  const s=Math.max(0.05,Math.min(16,mm.scale*factor)); factor=s/mm.scale;
+  mm.tx=cx-(cx-mm.tx)*factor; mm.ty=cy-(cy-mm.ty)*factor; mm.scale=s; applyMM();
+}
+function fitMM(){                                    // 置中並縮到剛好放得下(留 5% 邊)
+  const svg=$("#mmCanvas").firstChild; if(!svg) return;
+  const w=parseFloat(svg.getAttribute("width"))||svg.getBoundingClientRect().width;
+  const h=parseFloat(svg.getAttribute("height"))||svg.getBoundingClientRect().height;
+  const sr=$("#mmStage").getBoundingClientRect();
+  const fit=Math.min(sr.width/w, sr.height/h, 1)*0.95;
+  mm.scale=fit>0?fit:1; mm.tx=(sr.width-w*mm.scale)/2; mm.ty=(sr.height-h*mm.scale)/2; applyMM();
+}
+function openMermaidModal(svg){
+  if(!svg) return;
+  const clone=svg.cloneNode(true); clone.removeAttribute("style");   // 去掉 mermaid 內聯 max-width
+  const vb=svg.viewBox && svg.viewBox.baseVal; let w=0,h=0;
+  if(vb && vb.width){ w=vb.width; h=vb.height; } else { const r=svg.getBoundingClientRect(); w=r.width; h=r.height; }
+  clone.setAttribute("width",w); clone.setAttribute("height",h);
+  const canvas=$("#mmCanvas"); canvas.innerHTML=""; canvas.appendChild(clone);
+  $("#mmModal").style.display="flex"; fitMM();
+}
+function closeMermaidModal(){ $("#mmModal").style.display="none"; $("#mmCanvas").innerHTML=""; }
+(function bindMM(){
+  const stage=$("#mmStage"); if(!stage) return;
+  $("#mmClose").addEventListener("click",closeMermaidModal);
+  $("#mmReset").addEventListener("click",fitMM);
+  $("#mmZoomIn").addEventListener("click",()=>{ const r=stage.getBoundingClientRect(); mmZoomAt(1.25,r.width/2,r.height/2); });
+  $("#mmZoomOut").addEventListener("click",()=>{ const r=stage.getBoundingClientRect(); mmZoomAt(0.8,r.width/2,r.height/2); });
+  stage.addEventListener("wheel",e=>{ e.preventDefault(); const r=stage.getBoundingClientRect();
+    mmZoomAt(e.deltaY<0?1.12:1/1.12, e.clientX-r.left, e.clientY-r.top); }, {passive:false});
+  let drag=null;
+  stage.addEventListener("pointerdown",e=>{ drag={x:e.clientX,y:e.clientY,tx:mm.tx,ty:mm.ty};
+    stage.setPointerCapture(e.pointerId); stage.classList.add("grabbing"); });
+  stage.addEventListener("pointermove",e=>{ if(!drag) return;
+    mm.tx=drag.tx+(e.clientX-drag.x); mm.ty=drag.ty+(e.clientY-drag.y); applyMM(); });
+  const end=()=>{ if(drag){ drag=null; stage.classList.remove("grabbing"); } };
+  stage.addEventListener("pointerup",end); stage.addEventListener("pointercancel",end);
+  document.addEventListener("keydown",e=>{ if(e.key==="Escape" && $("#mmModal").style.display==="flex") closeMermaidModal(); });
+})();
+
 function clearHighlights(){
   document.querySelectorAll("mark.anno").forEach(m=>{ const p=m.parentNode; while(m.firstChild) p.insertBefore(m.firstChild,m); p.removeChild(m); if(p.normalize) p.normalize(); });
   document.querySelectorAll(".hl-block").forEach(b=>b.classList.remove("hl-block"));

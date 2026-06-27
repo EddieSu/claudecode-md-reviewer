@@ -3,6 +3,24 @@
 All notable changes to this project are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.5.0] - 2026-06-27
+
+### Added
+- **Mermaid diagram lightbox**: large flowcharts are no longer cramped inside the
+  document column. Hovering a rendered diagram reveals a `⛶` button (double-click
+  the diagram works too) that opens it in a near-fullscreen modal. The modal
+  **auto-fits** the whole diagram on open, then supports **zoom** (mouse wheel,
+  centered on the cursor, plus `＋ / −` buttons), **pan** (click-and-drag), a
+  **fit-to-screen reset** (`⟲`), and close via `✕`, backdrop `Esc`. The backdrop is
+  opaque and theme-aware (light/dark). New i18n keys `mermaid.*` (English +
+  Traditional Chinese); missing keys fall back to English.
+
+### Notes
+- Additive and backward-compatible: no change to the annotation `*.review.json`
+  format, the Markdown renderer, or the local-only security model. The lightbox is
+  pure client-side (no new endpoints, no network calls) and reuses the vendored
+  offline mermaid build.
+
 ## [0.4.0] - 2026-06-21
 
 ### Added
