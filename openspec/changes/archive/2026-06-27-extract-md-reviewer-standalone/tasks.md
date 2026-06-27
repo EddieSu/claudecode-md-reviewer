@@ -41,12 +41,12 @@
 
 ## 7. 上 GitHub + 發布（Phase 2，含人工授權步驟）
 
-- [ ] 7.1 用 GitHub MCP 建立 public repo `claudecode-md-reviewer` 並推送（依規範，GitHub 操作走 MCP）
-- [ ] 7.2 確認作者 npm 帳號；`npm publish`（人工授權執行）
-- [ ] 7.3 打 tag `v0.1.0`（tag 驅動版本）
+- [x] 7.1 用 GitHub MCP 建立 public repo `claudecode-md-reviewer` 並推送（依規範，GitHub 操作走 MCP）
+- [x] 7.2 確認作者 npm 帳號；`npm publish`（人工授權執行）— 已發布（npm 上線至 v0.4.0）
+- [~] 7.3 打 tag `v0.1.0`（tag 驅動版本）— 已跳過：版本直接演進，最早 tag 為 `v0.3.0`，不回溯補打 `v0.1.0`
 
 ## 8. 接回作者環境（Phase 3）
 
-- [ ] 8.1 把作者現有 `pins.json` 內容遷移到 `~/.md-reviewer/pins.json`
-- [ ] 8.2 經 `claude-config` 把 `~/.claude/tools/md-reviewer` 改為消費發布套件（npm 安裝或 vendored）
-- [ ] 8.3 確認消費端運作後，`ClaudeCodeManager/tools/md-reviewer` 標記為已遷出（保留或移除由作者決定）
+- [ ] 8.1 把作者現有 `pins.json` 內容遷移到 `~/.md-reviewer/pins.json` — 待作者本機核實（`~/.md-reviewer/`）
+- [x] 8.2 經 `claude-config` 把 `~/.claude/tools/md-reviewer` 改為消費發布套件（npm 安裝或 vendored）— 全域 skill `md-reviewer` 已改用 npm 套件
+- [x] 8.3 確認消費端運作後，`ClaudeCodeManager/tools/md-reviewer` 標記為已遷出（保留或移除由作者決定）— 舊 `~/.claude/tools/md-reviewer` + `review.cmd` 已退役
