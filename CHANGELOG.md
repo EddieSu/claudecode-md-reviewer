@@ -3,6 +3,16 @@
 All notable changes to this project are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.5.1] - 2026-10-01
+
+### Fixed
+- **Broken mermaid diagrams no longer leave a "Syntax error" bomb at the bottom of
+  the page.** mermaid 10.x keeps its error diagram in a temporary `#d<id>` node
+  appended to `<body>` when parsing fails; the reviewer already fell back to
+  showing the source as a code block, but never removed that node, so one bomb
+  per broken diagram piled up below the document. The failed-render path now
+  removes it. (#1)
+
 ## [0.5.0] - 2026-06-27
 
 ### Added
