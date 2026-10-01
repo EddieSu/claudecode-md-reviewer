@@ -183,14 +183,15 @@ async function renderMermaid(){
   try{ mermaid.initialize({startOnLoad:false, securityLevel:"strict", theme:dark?"dark":"default"}); }catch(e){}
   let n=0;
   for(const el of nodes){
-    const src=el.textContent;
-    try{ const {svg}=await mermaid.render("mmd"+(n++)+"_"+Math.floor(Math.random()*1e6), src); el.innerHTML=svg;
+    const src=el.textContent, id="mmd"+(n++)+"_"+Math.floor(Math.random()*1e6);
+    try{ const {svg}=await mermaid.render(id, src); el.innerHTML=svg;
       const btn=document.createElement("button"); btn.type="button"; btn.className="mm-zoom-btn"; btn.textContent="⛶";
       btn.title=t("mermaid.zoom");
       btn.addEventListener("click", ev=>{ ev.stopPropagation(); openMermaidModal(el.querySelector("svg")); });
       el.appendChild(btn);
       el.addEventListener("dblclick", ()=> openMermaidModal(el.querySelector("svg"))); }
-    catch(e){ const pre=document.createElement("pre"); pre.setAttribute("data-line", el.getAttribute("data-line")||"");
+    catch(e){ document.getElementById("d"+id)?.remove(); document.getElementById(id)?.remove();   // mermaid 10 失敗時把錯誤圖（炸彈）留在 body 底部，自己清
+      const pre=document.createElement("pre"); pre.setAttribute("data-line", el.getAttribute("data-line")||"");
       const c=document.createElement("code"); c.textContent=src; pre.appendChild(c); el.replaceWith(pre); }   // 壞圖 → 退回程式碼塊
   }
 }
