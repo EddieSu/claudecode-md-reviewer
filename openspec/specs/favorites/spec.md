@@ -33,9 +33,6 @@ go through a token-protected `POST /api/favorite`.
 - **WHEN** a `POST /api/favorite` arrives without the correct token
 - **THEN** the server responds 403 and does not modify `favorites.json`
 
----
-🤖 claude-opus-5-5[1m] · effort: xhigh · 2026-10-08
-
 ### Requirement: Dedicated Favorites section
 The sidebar SHALL render a dedicated Favorites section, populated from a
 `favorites` array returned by `GET /api/sidebar`, each row carrying the same
@@ -53,4 +50,3 @@ be both pinned and favorited, and removing one SHALL NOT affect the other.
 #### Scenario: A document that is both pinned and favorited
 - **WHEN** a pinned document is also favorited and then unfavorited
 - **THEN** it disappears from Favorites but remains in the pinned section
-

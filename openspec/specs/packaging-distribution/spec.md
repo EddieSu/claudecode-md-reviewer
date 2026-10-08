@@ -22,9 +22,6 @@ The package SHALL declare an explicit `files` whitelist so that the published ta
 - **THEN** the tarball includes `server.cjs`, `reviewer.html`, `reviewer.css`, `reviewer.js`, `reviewer-diff.js`, `bin/`, `pins.example.json`, `README*`, and `LICENSE`
 - **AND** it excludes `~/.md-reviewer/` data and any personal `pins.json`
 
----
-🤖 claude-opus-5-5[1m] · effort: xhigh · 2026-10-08
-
 ### Requirement: Declared runtime contract
 The package SHALL declare `engines.node` of `>=18` and SHALL have zero runtime npm dependencies (Node built-in modules only).
 
@@ -42,4 +39,3 @@ The package SHALL follow semantic versioning starting at `0.1.0`, and SHALL main
 #### Scenario: Changelog matches manifest
 - **WHEN** the package version is `0.1.0`
 - **THEN** `CHANGELOG.md` contains a `0.1.0` entry describing the first standalone release
-

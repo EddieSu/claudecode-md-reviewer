@@ -30,10 +30,6 @@ stateDiagram-v2
 - **WHEN** the left and right panels are collapsed
 - **THEN** the button is still in the bottom-right corner of the reading pane
 
-#### Scenario: Does not open the annotation popover
+#### Scenario: Does not show the selection toolbar
 - **WHEN** text is selected in the document and the user clicks the button
-- **THEN** the annotation popover does not open
-
----
-🤖 claude-opus-5-5[1m] · effort: xhigh · 2026-10-08
-
+- **THEN** the selection toolbar does not appear and the annotation box does not open

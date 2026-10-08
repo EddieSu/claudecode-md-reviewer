@@ -105,12 +105,12 @@
 
 ## 11. 合併、發布與歸檔
 
-- [ ] 11.1 commit 並推送 `feature/selection-actions-and-review-kinds`，用 GitHub MCP 開 PR 到 `main`，經使用者同意後合併。
+- [x] 11.1 commit 並推送 `feature/selection-actions-and-review-kinds`，用 GitHub MCP 開 PR 到 `main`，經使用者同意後合併。
 - [ ] 11.2 **需使用者明確同意才執行**：依 `RELEASING.md` 在 `main` 打 `v0.7.0` tag 並推送，由 GitHub Actions 發布到 npm，發布後確認 npm 上的版本是 0.7.0。
 - [ ] 11.3 發布完成後執行 10.2，並在本機執行 `npm i -g claudecode-md-reviewer`，確認裝到 0.7.0。
-- [ ] 11.4 執行 `openspec archive add-selection-actions-and-review-kinds`，把 delta 併入主規格。
-- [ ] 11.5 整理歸檔後的主規格：`openspec/specs/review-status/spec.md` 與 `openspec/specs/sidecar-integrity/spec.md` 的中段會多出一行簽名（delta 檔尾的簽名被當成最後一條修改需求的一部分併進去），刪掉中段那行、檔尾只留一行；新建的 `annotation-kinds` 與 `selection-actions` 主規格把 Purpose 的「TBD」改成一句說明；再跑 `openspec validate --specs --strict` 確認通過。
-- [ ] 11.6 歸檔結果另開分支與 PR，經使用者同意後合併（照上一個變更的做法）。
+- [x] 11.4 執行 `openspec archive add-selection-actions-and-review-kinds`，把 delta 併入主規格。
+- [x] 11.5 整理歸檔後的主規格：`openspec/specs/review-status/spec.md` 與 `openspec/specs/sidecar-integrity/spec.md` 的中段會多出一行簽名（delta 檔尾的簽名被當成最後一條修改需求的一部分併進去），刪掉中段那行、檔尾只留一行；新建的 `annotation-kinds` 與 `selection-actions` 主規格把 Purpose 的「TBD」改成一句說明；再跑 `openspec validate --specs --strict` 確認通過。
+- [x] 11.6 歸檔結果另開分支與 PR，經使用者同意後合併（照上一個變更的做法）。
 
 ---
 🤖 claude-opus-5-5[1m] · effort: ? · 2026-10-08
