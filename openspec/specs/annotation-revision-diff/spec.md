@@ -134,7 +134,3 @@ page's own writes SHALL NOT trigger the notice.
 #### Scenario: AI revises the open document
 - **WHEN** the open document is rewritten on disk by another program
 - **THEN** within a few seconds the page shows "This document changed on disk" with a reload button
-
----
-🤖 claude-opus-5-5[1m] · effort: xhigh · 2026-10-08
-
