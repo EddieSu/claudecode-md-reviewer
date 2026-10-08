@@ -274,10 +274,12 @@ sequenceDiagram
 - `/api/file` reports `sidecarError` when the file exists but cannot be parsed.
   The page shows a persistent notice and does not attempt to save.
 - "Missing file" and "no `updatedAt`" both count as `base = null`.
-- Unknown top-level fields and unknown annotation fields written by a newer
-  version are kept. The browser sends annotations through one field whitelist
+- Unknown **top-level** fields written by a newer version are kept. Annotation
+  objects are different: the browser sends them through one field whitelist
   (`buildSidecar`, also used by "⬇ Export"), so values computed in memory can
-  never leak into the file.
+  never leak into the file. The cost is that an unknown per-annotation field from
+  a newer version is dropped on save, which is acceptable because every device
+  is expected to run the same version (see Risks).
 - On 409 the page shows "changed elsewhere, reload" and stops autosaving until
   reloaded. Unsaved edits stay on screen, so the user can copy them if needed.
 
