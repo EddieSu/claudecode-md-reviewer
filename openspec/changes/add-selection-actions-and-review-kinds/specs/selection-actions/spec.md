@@ -190,6 +190,15 @@ selection in the article, the toolbar SHALL appear again at the new position whe
 mouse is released, under the rules of "Selection toolbar for article text". When Esc
 is pressed while focus is inside the toolbar, focus SHALL move to the reading pane.
 
+When the user made the selection with the mouse and the toolbar hid because the
+selection was then adjusted with Shift and the arrow keys, releasing Shift SHALL show
+the toolbar again next to the adjusted selection, provided the selection is still not
+blank, still starts inside a rendered article block, and neither the annotation box
+nor the diagram zoom view is open. The toolbar SHALL then record the line number,
+quote and raw text of the adjusted selection, SHALL be aligned horizontally with the
+end of the selection that was moved, and SHALL NOT take keyboard focus. Releasing
+Shift SHALL NOT show the toolbar for a selection made with the keyboard alone.
+
 #### Scenario: Click elsewhere
 - **WHEN** the toolbar is shown and the user clicks an empty area of the article
 - **THEN** the toolbar hides
@@ -205,6 +214,11 @@ is pressed while focus is inside the toolbar, focus SHALL move to the reading pa
 #### Scenario: Selection cleared by script or keyboard
 - **WHEN** the toolbar is shown and the selection becomes empty or its text changes without a mouse release
 - **THEN** the toolbar hides
+
+#### Scenario: Mouse selection adjusted with Shift and arrow keys
+- **WHEN** the user selects a phrase with the mouse, holds Shift, extends the selection with the arrow keys and then releases Shift
+- **THEN** the toolbar appears again next to the new selection and keyboard focus has not moved
+- **AND** pressing "Copy" copies the extended selection
 
 #### Scenario: Window resized
 - **WHEN** the toolbar is shown and the browser window is resized
