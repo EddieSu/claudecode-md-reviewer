@@ -63,6 +63,80 @@ open manually.
 4. The author reads `<file>.review.json` and acts on each open annotation. Or
    click **📋 Copy for Claude** to copy unresolved notes as plain text and paste
    them straight back into your AI chat.
+5. When you are satisfied, click **☐ Mark review complete** in the header (see
+   [Review status](#review-status)).
+
+Long documents get a **↑** button in the bottom-right of the reading pane once
+you scroll down; it scrolls back to the top.
+
+## Review status
+
+Every document can carry a **review-complete record**, so you can always tell
+whether its review is finished.
+
+- Click **☐ Mark review complete** in the header. The record (time + a
+  fingerprint of the text you were reading) is saved in the document's
+  `.review.json`. The document also leaves **📥 To review**.
+- If the document changes afterwards, the button reads **⚠ Changed since review ·
+  mark again**, and its row in the left list shows a **Changed** label instead of
+  **Reviewed**. Changing the text back to the approved version makes it
+  "complete" again.
+- Marking with unresolved annotations asks for confirmation. Adding a new
+  annotation to a completed document removes the record (a new comment means the
+  review is open again). Removing the record by hand also asks first.
+- If the file on disk is newer than the version on screen, marking is refused
+  until you reload, so a record always refers to the text you actually read.
+
+## When the document changes: old vs new in the annotation card
+
+Each annotation remembers the Markdown source of the paragraph it was made on
+(plus the first line of the paragraphs before and after it). When the author
+revises the document, the annotations panel shows what happened to each one:
+
+- **unchanged**: nothing extra; the highlight follows the paragraph even if it
+  moved;
+- **✎ Original text changed**: a word-level difference between the old and new
+  paragraph (removed text struck through, added text highlighted); resolved
+  annotations keep it behind **Show changes**;
+- **✎ Paragraph removed or rewritten beyond recognition**: the old text is shown
+  and the annotation is no longer highlighted (its line shows as "was L42").
+
+While a document is open, the page notices within a few seconds when the file
+changes on disk and offers **↻ Reload to see changes**. Annotations created
+before 0.6.0 have no remembered paragraph; they are found by their quote as
+before, and are labelled "original may have changed" when the quote is gone.
+
+## Cross-device
+
+Annotations and the review record live in the `<file>.review.json` **next to the
+document**, not in a per-machine database. So they are persistent, and they go
+wherever the document goes:
+
+- **Git**: commit the `.review.json` together with the `.md`. Check that it is not
+  ignored: `git check-ignore -v doc.review.json` prints the rule that ignores it
+  (including global gitignores); delete that rule. Remember that review comments
+  then stay in the repository history, which matters for a public repo.
+- **Synced folders** (OneDrive, Dropbox, iCloud): nothing to do. These tools do
+  not merge files; editing the same review on two machines at once leaves one
+  version or a "conflicted copy".
+- **Renaming or moving** a document: move its `.review.json` with it (`git mv`
+  both).
+- **Run 0.6.0 or newer on every device**: older versions drop the review record
+  when they save.
+- Line endings, a BOM and trailing spaces are ignored when comparing text, so a
+  Windows (CRLF) and a macOS (LF) checkout of the same file agree.
+
+What does **not** travel: the review queue, favorites, history, pinned docs
+(`~/.md-reviewer/` on each machine, keyed by absolute paths) and the UI
+language. On another machine, the Reviewed / Changed labels appear on whatever
+documents are in that machine's lists.
+
+If a `.review.json` cannot be read (for example, it has git merge-conflict
+markers), the reviewer says so and **does not save** until you fix it, so it never
+overwrites the file. To fix a conflict, merge the two `annotations` arrays and
+keep either `updatedAt`. Likewise, if another tab or device saved annotations
+after you opened the document, your save is refused with a prompt to reload
+instead of overwriting their changes.
 
 ## Sidebar: queue, favorites, history, pinned docs
 
@@ -76,7 +150,8 @@ Sections:
   Cleared when the server restarts (= one session).
 - **⭐ Favorites** — click the star on any row to bookmark a document. Favorites
   persist server-side in `~/.md-reviewer/favorites.json` (so they survive browser
-  and machine changes) and are independent of pins.
+  restarts and switching browsers on this machine; they are not shared across
+  machines) and are independent of pins.
 - **🕘 History** — documents you've opened, most-recent first, up to 50,
   persisted across sessions in `~/.md-reviewer/history.json`.
 - **📌 Pinned docs** — a whitelist of documents you always want one click away.
@@ -140,9 +215,12 @@ when a document is substantial enough to push:
 > `npx claudecode-md-reviewer "<absolute path to the md>"` so the user can
 > annotate it. When the user says "continue from my review", read the sibling
 > `<base>.review.json`, process every annotation with `status: "open"` using its
-> `line` + `quote` to locate the text, and revise per the `comment`. Do not edit
-> the `.review.json` yourself — report which items you handled and let the user
-> mark them resolved.
+> `line` + `quote` to locate the text, and revise per the `comment`. If the quote
+> is no longer found, use `context.block` (a snapshot of the paragraph when the
+> comment was written, not a target to restore) to find the closest paragraph;
+> treat `line` as a hint. Do not edit the `.review.json` yourself (never write the
+> `review` field: only the user marks a review complete). Report which items you
+> handled and let the user mark them resolved.
 
 Because the reviewer **polls every 4 seconds**, you only need it open once; later
 pushes appear in the **📥 To review** list automatically.
@@ -185,6 +263,7 @@ Use the instruction (layer 1) for "review when it's worth it" and the hook
   "file": "design.md",
   "schema": 1,
   "updatedAt": "2026-06-21T03:40:00.000Z",
+  "review": { "status": "done", "at": "2026-06-21T05:00:00.000Z", "hash": "3f2a..." },
   "annotations": [
     {
       "line": 42,
@@ -193,25 +272,39 @@ Use the instruction (layer 1) for "review when it's worth it" and the hook
       "color": "yellow",
       "status": "open",
       "id": "a...",
-      "createdAt": "..."
+      "createdAt": "...",
+      "context": { "block": "If x then this logic is wrong.", "prev": "## Rules", "next": "- step two" }
     }
   ]
 }
 ```
 
 - `line` — 1-based line in the source `.md` (start of the block the text is in).
+  It follows the paragraph when the document changes, and is saved the next time
+  you change an annotation.
 - `quote` — the selected text, so the author can locate it.
 - `comment` — your review note.
 - `status` — `open` (todo) or `resolved`.
+- `context` (0.6.0+) — the paragraph's Markdown source when the comment was
+  written, plus the first line of the paragraphs around it. Used to show what
+  changed; never updated afterwards.
+- `review` (0.6.0+, optional) — present only when the document is marked review
+  complete; `hash` is a SHA-256 fingerprint of the text that was approved.
+  Written only by the reviewer UI.
 
 ## Architecture & security
 
 - `server.cjs` — Node HTTP server, `listen('127.0.0.1', 8771)` only. Endpoints:
-  `GET /api/file`, `POST /api/save`, `GET /api/sidebar`, `POST /api/enqueue`,
+  `GET /api/file`, `POST /api/save`, `POST /api/review`, `GET /api/sidebar`, `POST /api/enqueue`,
   `POST /api/dequeue`, `POST /api/favorite`, `GET /api/locales`, `GET /api/locale`,
   `GET /api/browse`, `GET /api/ping`.
 - Front end split into `reviewer.html` + `reviewer.css` + `reviewer.js`
   (the latter two served from `/reviewer.css` and `/reviewer.js`, no token).
+  `reviewer-diff.js` holds the pure text-matching and difference functions,
+  shared by the browser and the server (`npm test` checks it).
+- **Safe writes**: every save carries the `updatedAt` it last saw; the server
+  refuses a write to an unreadable sidecar or from an out-of-date tab (409), and
+  keeps fields it does not manage.
 - **Token** — a random token generated at startup, written only to a temp file
   (`md-reviewer-server.json`) for the launcher; the browser reads it from the
   URL, and `/api/*` requires it, blocking forged requests from other local tabs.

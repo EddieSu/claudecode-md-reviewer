@@ -3,6 +3,53 @@
 All notable changes to this project are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.6.0] - 2026-10-08
+
+### Added
+- **Review-complete record per document.** A header button marks the open
+  document as review complete. The record (time + a SHA-256 fingerprint of the
+  text that was on screen) is stored in the document's `.review.json` as a new
+  `review` field, so it is persistent and travels with the document through git
+  or a synced folder. If the text changes afterwards, the document shows as
+  **changed since review** (header button and a **Changed** label in the left
+  list; **Reviewed** when it still matches). Marking with unresolved annotations
+  asks first, adding a new annotation removes the record, marking takes the
+  document out of "To review", and marking is refused when the file on disk is
+  newer than the page. Line endings, BOM and trailing spaces are ignored, so
+  Windows and macOS checkouts agree. New endpoint `POST /api/review`.
+- **Old/new difference in annotation cards.** New annotations remember the
+  Markdown source of their paragraph and its neighbours (`context`). When the
+  document is revised, each card shows whether the paragraph is unchanged (the
+  highlight follows it if it moved), **changed** (word-level difference, removed
+  text struck through and added text highlighted), or **removed** (old text shown,
+  no highlight). The page notices when the open file changes on disk and offers a
+  reload. "Copy for Claude" marks changed/removed annotations.
+- **Back-to-top button** in the bottom-right of the reading pane, shown after
+  scrolling down one screen.
+- `npm test` runs `test/diff.test.cjs` (matching and difference checks).
+
+### Fixed
+- **Line numbers after an inline HTML comment.** Text following `<!-- ... -->` on
+  the same line shifted every later block's line number by one, so highlights,
+  "Go to" and the `line` written to `.review.json` were off. Fixed.
+- **A `.review.json` that cannot be parsed is no longer overwritten.** It used to
+  be treated as empty and replaced on the next save (for example after a git
+  merge conflict). Now the page shows a notice and stops saving until it is fixed.
+- **Saves from an out-of-date tab no longer overwrite newer annotations** made in
+  another tab or on another device; the save is refused with a prompt to reload.
+  Saving also keeps sidecar fields it does not manage.
+- README no longer claims favorites follow you across machines; they live in
+  `~/.md-reviewer/` on each machine.
+
+### Notes
+- Backward compatible: old `.review.json` files load unchanged (`schema` stays
+  `1`). Annotations created before 0.6.0 have no `context`; they are located by
+  their quote as before and are labelled "original may have changed" when the
+  quote is gone, so the old/new difference is available only for annotations
+  created with 0.6.0 or later.
+- Use 0.6.0 or later on every device that edits the same `.review.json`: 0.5.x
+  rewrites the file from its own fields and drops the `review` record.
+
 ## [0.5.1] - 2026-10-01
 
 ### Fixed

@@ -53,6 +53,60 @@ CLI 會確認本機 server 在跑（沒跑就背景起一個）、把檔案推�
 3. 註解即時自動存成同目錄的 `<檔名>.review.json`，右上角顯示「已自動儲存」。
 4. 作者讀 `<檔名>.review.json` 依意見續做；或按 **📋 複製給 Claude** 把未解決
    註解複製成純文字,直接貼回 AI 對話。
+5. 審完滿意了，按工具列的 **☐ 標記審閱完成**（見[審閱完成紀錄](#審閱完成紀錄)）。
+
+長文件往下捲之後，閱讀區右下角會出現 **↑** 鈕，按一下回到頂端。
+
+## 審閱完成紀錄
+
+每份文件都可以留一筆「審閱完成」紀錄，隨時看得出它審完了沒。
+
+- 按工具列的 **☐ 標記審閱完成**。紀錄（時間＋你當時看的那一版文字的指紋）存進該
+  文件的 `.review.json`，文件也會移出 **📥 本次待審**。
+- 之後文件若被修改，按鈕會變成 **⚠ 完成後已修改 · 重新標記完成**，左側清單那一列
+  也從 **已審** 變成 **需重審**。文字若改回當初核可的版本，就又算完成。
+- 還有未解決註解時標記完成，會先跟你確認。對已完成的文件新增註解，會自動取消完成
+  紀錄（有新意見就不算審完）。手動取消也會先確認。
+- 磁碟上的檔案比畫面上的新時，必須先重新載入才能標記，確保紀錄對應的是你真的看過
+  的那一版。
+
+## 文件被修改後：註解卡片顯示新舊差異
+
+每則註解都會記住加註當下那一段的 Markdown 原文（以及前後兩段的第一行）。作者改了
+文件之後，右側註解欄會告訴你每一則發生了什麼：
+
+- **沒變**：不另外顯示；段落就算搬了位置，螢光也會跟著走。
+- **✎ 原文已修改**：以字為單位顯示新舊差異（刪掉的劃線、新增的上底色）；已解決的
+  註解收在 **顯示差異** 裡。
+- **✎ 原段落已刪除或大幅改寫**：顯示舊文，不再標螢光，行號顯示成「原 L42」。
+
+文件開著時，若磁碟上的檔案被改了，幾秒內頁面就會提示 **↻ 重新載入以查看差異**。
+0.6.0 以前建立的註解沒有記住原段落，仍照舊用引用文字定位；引用文字找不到時會標示
+「原文可能已修改」。
+
+## 跨設備
+
+註解和審閱完成紀錄存在**文件旁邊**的 `<檔名>.review.json`，不是存在某台機器的資料
+庫裡。所以它們會持久保存，而且文件到哪裡、它們就跟到哪裡：
+
+- **Git**：把 `.review.json` 跟 `.md` 一起 commit。先確認它沒有被忽略：
+  `git check-ignore -v doc.review.json` 會印出忽略它的那條規則（含全域 gitignore），
+  把那條刪掉即可。也要記得：審閱意見從此會留在版本歷史裡，公開 repo 人人看得到。
+- **雲端同步資料夾**（OneDrive、Dropbox、iCloud）：不用做任何事。但這類工具不會合併
+  檔案內容，兩台機器同時改同一份審閱，結果會是其中一版，或多出一份「衝突副本」。
+- **改檔名或搬移**文件時，`.review.json` 要一起搬（兩個檔都用 `git mv`）。
+- **每台設備都要用 0.6.0 以上**：舊版存檔時會把完成紀錄丟掉。
+- 比對文字時會忽略換行符號、BOM 與行尾空白，所以同一份檔案在 Windows（CRLF）和
+  macOS（LF）上判斷一致。
+
+**不會**跟著走的：本次待審、收藏、過往紀錄、釘選文件（存在各台機器的
+`~/.md-reviewer/`，以絕對路徑為鍵）以及介面語言。換到另一台機器時，「已審／需重審」
+標籤只會出現在那台機器清單裡有的文件上。
+
+`.review.json` 讀不懂時（例如有 git 合併衝突標記），審閱器會明白告訴你，並且在你修好
+之前**不存檔**，絕不覆蓋它。解衝突的方法：把兩邊的 `annotations` 陣列合併，
+`updatedAt` 任選一邊。同理，如果你開檔之後別的分頁或設備存過註解，你的存檔會被擋下並
+請你重新載入，而不是蓋掉對方的修改。
 
 ## 左側清單：待審、收藏、過往紀錄、釘選文件
 
@@ -63,7 +117,8 @@ CLI 會確認本機 server 在跑（沒跑就背景起一個）、把檔案推�
 - **📥 本次待審** — 這次 session 透過 CLI 推來要你審的文件。server 重啟即清空
   （＝一個 session）。
 - **⭐ 收藏** — 在任何一列點星即可加入收藏。收藏存在伺服器端
-  `~/.md-reviewer/favorites.json`（跨瀏覽器/機器都在），與 pins 各自獨立。
+  `~/.md-reviewer/favorites.json`（重開瀏覽器、在這台機器換瀏覽器都還在；不會跨機器
+  同步），與 pins 各自獨立。
 - **🕘 過往紀錄** — 你開過的文件，依最近開啟排序、上限 50 筆，跨 session 持久化在
   `~/.md-reviewer/history.json`。
 - **📌 釘選文件** — 你想隨時一鍵叫出的文件白名單。
@@ -119,8 +174,10 @@ cp "$(npm root -g)/claudecode-md-reviewer/locales/en.json" ~/.md-reviewer/locale
 > 產出有份量的 `.md` 後,執行
 > `npx claudecode-md-reviewer "<該 md 的絕對路徑>"` 讓使用者加註。當使用者說
 > 「依審閱續做」時,讀同目錄的 `<base>.review.json`,逐條處理 `status` 為
-> `"open"` 的註解:用 `line` + `quote` 定位、依 `comment` 修改。**不要**自行改動
-> `.review.json`,回報哪幾條已處理即可,由使用者自行標記「已解決」。
+> `"open"` 的註解:用 `line` + `quote` 定位、依 `comment` 修改。quote 找不到時,
+> 用 `context.block`(加註當下的段落原文快照,不是要還原成的目標)找最相近的段落;
+> `line` 僅供參考。**不要**自行改動 `.review.json`(尤其不要寫入 `review` 欄位,
+> 審閱完成只由使用者標記),回報哪幾條已處理即可,由使用者自行標記「已解決」。
 
 因為審閱器**每 4 秒輪詢**,只要開著一次,之後的推送會自動冒進 **📥 本次待審**。
 
@@ -160,6 +217,7 @@ npx claudecode-md-reviewer --hook /path/to/.claude/settings.json
   "file": "design.md",
   "schema": 1,
   "updatedAt": "2026-06-21T03:40:00.000Z",
+  "review": { "status": "done", "at": "2026-06-21T05:00:00.000Z", "hash": "3f2a..." },
   "annotations": [
     {
       "line": 42,
@@ -168,25 +226,34 @@ npx claudecode-md-reviewer --hook /path/to/.claude/settings.json
       "color": "yellow",
       "status": "open",
       "id": "a...",
-      "createdAt": "..."
+      "createdAt": "...",
+      "context": { "block": "如果 x 成立，這段邏輯有問題。", "prev": "## 規則", "next": "- 第二步" }
     }
   ]
 }
 ```
 
-- `line`：對應 `.md` 原始行號（1-based，該文字所在區塊的起始行）。
+- `line`：對應 `.md` 原始行號（1-based，該文字所在區塊的起始行）。文件修改後會跟著
+  段落走，下次你改動註解時寫回檔案。
 - `quote`：你選取的原文片段（給作者就近定位用）。
 - `comment`：你的審閱意見。
 - `status`：`open`（待處理）/ `resolved`（已解決）。
+- `context`（0.6.0 起）：加註當下那一段的 Markdown 原文，加上前後兩段的第一行。用來
+  顯示新舊差異，之後不再更新。
+- `review`（0.6.0 起，選填）：只有標記審閱完成時才有；`hash` 是當時核可那一版文字的
+  SHA-256 指紋。只由審閱器介面寫入。
 
 ## 架構與安全
 
 - `server.cjs`：Node HTTP server，只 `listen('127.0.0.1', 8771)`。端點
-  `GET /api/file`、`POST /api/save`、`GET /api/sidebar`、`POST /api/enqueue`、
+  `GET /api/file`、`POST /api/save`、`POST /api/review`、`GET /api/sidebar`、`POST /api/enqueue`、
   `POST /api/dequeue`、`POST /api/favorite`、`GET /api/locales`、`GET /api/locale`、
   `GET /api/browse`、`GET /api/ping`。
 - 前端拆成 `reviewer.html` + `reviewer.css` + `reviewer.js`（後兩者由
-  `/reviewer.css`、`/reviewer.js` 送出，純程式碼、免 token）。
+  `/reviewer.css`、`/reviewer.js` 送出，純程式碼、免 token）。`reviewer-diff.js`
+  放文字比對與差異的純函式，瀏覽器和 server 共用（`npm test` 會檢查它）。
+- **安全寫入**：每次存檔都帶上它最後看到的 `updatedAt`；註解檔讀不懂、或分頁已過時，
+  server 一律回 409 拒寫，沒管到的欄位原樣保留。
 - **token**：server 啟動時產生隨機 token，只寫進暫存檔給 launcher；頁面從 URL
   取得，`/api/*` 需附 token → 擋掉同機其他瀏覽器分頁的偽造請求。
 - **Host 檢查**：只接受 `Host: 127.0.0.1:8771` / `localhost:8771` → 擋 DNS rebinding。
