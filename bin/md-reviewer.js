@@ -114,7 +114,9 @@ function installHook(settingsPath) {
     "  After producing a substantial .md, run:\n" +
     '    npx claudecode-md-reviewer "<absolute path to the md>"\n' +
     "  so the user can annotate it; then read the sibling <base>.review.json and\n" +
-    "  act on each annotation whose status is \"open\".\n"
+    "  act on each annotation whose status is \"open\" according to its \"kind\"\n" +
+    "  (no kind means \"see-comment\"; \"agree\" needs no action). How to handle\n" +
+    "  each kind: see \"Annotation kinds\" in the md-reviewer README.\n"
   );
 }
 

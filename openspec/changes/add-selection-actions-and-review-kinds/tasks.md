@@ -1,21 +1,21 @@
 ## 1. 共用模組 `reviewer-diff.js` 與單元測試（先做，前端與伺服器都依賴它）
 
-- [ ] 1.1 在 `reviewer-diff.js` 新增 `KINDS`，依 design D9 的順序列出八類的 `kind` 值與符號（see-comment ※、agree ✓、explain-more ?、offer-alternatives ⇄、delete-text −、rethink-first-principles ↺、state-positively +、drop-feature ⊘），並把模組開頭的說明改成也涵蓋「註解分類」。
-- [ ] 1.2 新增 `kindOf(a)`：`a.kind` 是字串而且是八類之一就回傳它，其他情況一律回傳 `"see-comment"`。
-- [ ] 1.3 新增 `isTodo(a)`：只有狀態不是 `resolved`、而且 `kindOf(a)` 不是 `agree` 時才回傳 true。
-- [ ] 1.4 新增 `newAnnotation(fields)`：組出新註解，一律帶 `kind`，`comment` 轉成字串（空的存 `""`），不帶 `color`，`context` 有值才帶。
-- [ ] 1.5 新增 `annToSave(a)`：先複製記憶體裡的註解物件，再蓋上已知欄位的正規化值（`line`、`quote`、轉成字串的 `comment`、`status`、`id`、`createdAt`；`kind`、`color`、`context` 有值才寫），物件上沒有的欄位不補。
-- [ ] 1.6 確認這五項同時從 `module.exports`（Node）與 `window.MDRDiff`（瀏覽器）匯出。
-- [ ] 1.7 在 `test/diff.test.cjs` 加入 `KINDS` 與 `kindOf` 的檢查：八類的值與順序正確並原樣回傳；沒有 `kind`、不認得的值、數字、物件、`null`、只有 `color` 的舊註解都回傳 `"see-comment"`。
-- [ ] 1.8 加入 `isTodo` 的檢查：未解決的「同意」不算；未解決的「見說明」與沒有 `kind` 的舊註解算；已解決的任何分類都不算。
-- [ ] 1.9 加入 `annToSave` 的檢查：舊註解（有 `color`、沒有 `kind`）前後內容完全相同；帶陌生欄位的註解存檔後陌生欄位仍在；沒有 `comment` 的註解存成 `""`。
-- [ ] 1.10 加入 `newAnnotation` 的檢查：結果沒有 `color`、一定有 `kind`、`comment` 是字串。
-- [ ] 1.11 跑 `npm test`，新舊檢查全部通過。
+- [x] 1.1 在 `reviewer-diff.js` 新增 `KINDS`，依 design D9 的順序列出八類的 `kind` 值與符號（see-comment ※、agree ✓、explain-more ?、offer-alternatives ⇄、delete-text −、rethink-first-principles ↺、state-positively +、drop-feature ⊘），並把模組開頭的說明改成也涵蓋「註解分類」。
+- [x] 1.2 新增 `kindOf(a)`：`a.kind` 是字串而且是八類之一就回傳它，其他情況一律回傳 `"see-comment"`。
+- [x] 1.3 新增 `isTodo(a)`：只有狀態不是 `resolved`、而且 `kindOf(a)` 不是 `agree` 時才回傳 true。
+- [x] 1.4 新增 `newAnnotation(fields)`：組出新註解，一律帶 `kind`，`comment` 轉成字串（空的存 `""`），不帶 `color`，`context` 有值才帶。
+- [x] 1.5 新增 `annToSave(a)`：先複製記憶體裡的註解物件，再蓋上已知欄位的正規化值（`line`、`quote`、轉成字串的 `comment`、`status`、`id`、`createdAt`；`kind`、`color`、`context` 有值才寫），物件上沒有的欄位不補。
+- [x] 1.6 確認這五項同時從 `module.exports`（Node）與 `window.MDRDiff`（瀏覽器）匯出。
+- [x] 1.7 在 `test/diff.test.cjs` 加入 `KINDS` 與 `kindOf` 的檢查：八類的值與順序正確並原樣回傳；沒有 `kind`、不認得的值、數字、物件、`null`、只有 `color` 的舊註解都回傳 `"see-comment"`。
+- [x] 1.8 加入 `isTodo` 的檢查：未解決的「同意」不算；未解決的「見說明」與沒有 `kind` 的舊註解算；已解決的任何分類都不算。
+- [x] 1.9 加入 `annToSave` 的檢查：舊註解（有 `color`、沒有 `kind`）前後內容完全相同；帶陌生欄位的註解存檔後陌生欄位仍在；沒有 `comment` 的註解存成 `""`。
+- [x] 1.10 加入 `newAnnotation` 的檢查：結果沒有 `color`、一定有 `kind`、`comment` 是字串。
+- [x] 1.11 跑 `npm test`，新舊檢查全部通過。
 
 ## 2. 伺服器與命令列
 
-- [ ] 2.1 `server.cjs` 從 `reviewer-diff.js` 多取 `isTodo`，`annCounts` 回傳的 `open` 改成以 `isTodo` 計數（`/api/save` 與 `writeSidecar` 不改）。
-- [ ] 2.2 `bin/md-reviewer.js --hook` 印出的建議指示改成：依 `kind` 處理 `status` 為 `open` 的註解，沒有 `kind` 當 `see-comment`，`agree` 不必處理，分類說明見 README 的「註解分類」一節。
+- [x] 2.1 `server.cjs` 從 `reviewer-diff.js` 多取 `isTodo`，`annCounts` 回傳的 `open` 改成以 `isTodo` 計數（`/api/save` 與 `writeSidecar` 不改）。
+- [x] 2.2 `bin/md-reviewer.js --hook` 印出的建議指示改成：依 `kind` 處理 `status` 為 `open` 的註解，沒有 `kind` 當 `see-comment`，`agree` 不必處理，分類說明見 README 的「註解分類」一節。
 
 ## 3. 語系檔（`locales/en.json`、`locales/zh-Hant.json`）
 
