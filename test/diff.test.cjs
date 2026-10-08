@@ -117,4 +117,49 @@ t("多行表格只改一格 → 差異只在那一格", ()=>{
   assert.deepStrictEqual(changes(D.textDiff(rows.join("\n"), after.join("\n"))), [["-","v30"],["+","CHANGED"]]);
 });
 
+// ── 註解分類 ──
+const EIGHT=["see-comment","agree","explain-more","offer-alternatives","delete-text","rethink-first-principles","state-positively","drop-feature"];
+
+t("KINDS 依序列出八類與符號", ()=>{
+  assert.deepStrictEqual(D.KINDS.map(k=>k.kind), EIGHT);
+  assert.deepStrictEqual(D.KINDS.map(k=>k.sym), ["※","✓","?","⇄","−","↺","+","⊘"]);
+});
+
+t("kindOf：八類原樣回傳，其他一律 see-comment", ()=>{
+  for(const k of EIGHT) assert.strictEqual(D.kindOf({kind:k}), k);
+  for(const k of [undefined, "nitpick", "Agree", 3, {}, null, ["agree"], 'x" onmouseover="alert(1)'])
+    assert.strictEqual(D.kindOf({kind:k}), "see-comment", String(k));
+  assert.strictEqual(D.kindOf({color:"green"}), "see-comment");
+  assert.strictEqual(D.kindOf(null), "see-comment");
+});
+
+t("isTodo：「同意」不算待辦，已解決都不算", ()=>{
+  assert.strictEqual(D.isTodo({status:"open", kind:"agree"}), false);
+  assert.strictEqual(D.isTodo({status:"open", kind:"see-comment"}), true);
+  assert.strictEqual(D.isTodo({status:"open", color:"yellow"}), true);        // 舊註解
+  assert.strictEqual(D.isTodo({status:"open", kind:"nitpick"}), true);        // 不認得 → 見說明
+  for(const k of [...EIGHT, undefined]) assert.strictEqual(D.isTodo({status:"resolved", kind:k}), false, String(k));
+});
+
+t("annToSave：舊註解原樣、陌生欄位保留、沒有 comment 存成空字串", ()=>{
+  const old={ id:"amqkk2o101n05", line:14, quote:"一億筆", comment:"怎麼算的", color:"yellow", status:"resolved", createdAt:"2026-06-19T06:36:31.141Z" };
+  const before=JSON.stringify(old), out=D.annToSave(old);
+  assert.deepStrictEqual(out, old); assert.strictEqual(JSON.stringify(out), before);
+  assert.ok(!("kind" in out)); assert.notStrictEqual(out, old);
+  const odd={ id:"b", line:3, quote:"q", comment:"c", kind:"nitpick", status:"open", createdAt:"t", futureField:{ a:[1,2] } };
+  assert.deepStrictEqual(D.annToSave(odd), odd);
+  const noC={ id:"c", line:1, quote:"q", kind:"agree", status:"open", createdAt:"t" };
+  assert.strictEqual(D.annToSave(noC).comment, "");
+  assert.ok(!("color" in D.annToSave(noC)));
+});
+
+t("newAnnotation：一定有 kind、comment 是字串、沒有 color", ()=>{
+  const a=D.newAnnotation({ id:"x", line:2, quote:"q", comment:"", kind:"delete-text", color:"pink" });
+  assert.strictEqual(a.kind, "delete-text"); assert.strictEqual(a.comment, ""); assert.ok(!("color" in a));
+  assert.strictEqual(a.status, "open"); assert.ok(!("context" in a)); assert.strictEqual(typeof a.createdAt, "string");
+  const b=D.newAnnotation({ id:"y", line:2, quote:"q", context:{ block:"q", prev:null, next:null } });
+  assert.strictEqual(b.kind, "see-comment"); assert.strictEqual(b.comment, ""); assert.deepStrictEqual(b.context, { block:"q", prev:null, next:null });
+  assert.strictEqual(D.newAnnotation({ id:"z", line:1, quote:"q", comment:"c", kind:"bogus" }).kind, "see-comment");
+});
+
 console.log(`\n${n} checks passed`);

@@ -3,7 +3,7 @@
 // 擋掉同機其他瀏覽器分頁的偽造請求。
 "use strict";
 const http=require("http"), fs=require("fs"), path=require("path"), os=require("os"), crypto=require("crypto");
-const { normText } = require("./reviewer-diff.js");   // 與前端共用同一份正規化（hash 才會跨平台一致）
+const { normText, isTodo } = require("./reviewer-diff.js");   // 與前端共用同一份正規化（hash 才會跨平台一致）與待辦判斷
 
 const PORT = Number(process.env.MDR_PORT) || 8771;    // 預設 8771；MDR_PORT 可改埠（並存多實例）
 const TOKEN = crypto.randomBytes(16).toString("hex");
@@ -57,7 +57,7 @@ function annCounts(fp){
   const s=readSidecar(fp).data, a=(s && Array.isArray(s.annotations)) ? s.annotations : [];
   let review=null;                                // 有完成紀錄才讀檔算 hash
   if(s && s.review && s.review.status==="done") review={ state: s.review.hash===fileHash(fp) ? "done" : "stale", at:s.review.at };
-  return { total:a.length, open:a.filter(x=>x.status!=="resolved").length, review };
+  return { total:a.length, open:a.filter(x=>isTodo(x)).length, review };   // open＝待辦數（不含「同意」）
 }
 const tagCache = new Map();                       // dir -> 專案標籤(git root 名),避免每次輪詢重走
 function gitRoot(fp){                              // 往上找最近含 .git 的資料夾(.git 檔/資料夾皆算,含 worktree)

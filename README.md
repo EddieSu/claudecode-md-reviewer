@@ -56,18 +56,52 @@ open manually.
 1. Run `md-reviewer <file.md>` (or double-click `open-reviewer.cmd` on Windows
    and paste a path). You can also click the **…** button next to the path input
    to open an in-app file browser and pick a `.md` file.
-2. **Select text** in the article → an annotation box pops up → pick a color,
-   write your comment → **Add** (or `Ctrl+Enter`).
+2. **Select text** in the article → a small toolbar appears next to it:
+   - **Copy** puts only the selected text, as plain text, on the clipboard (the
+     toolbar stays, so you can press **Annotate** next);
+   - **Annotate** opens the annotation box → pick a kind (see
+     [Annotation kinds](#annotation-kinds); **See comment** is the default),
+     write your comment → **Save** (or `Ctrl+Enter`).
+
+   The toolbar does not take keyboard focus: press `Tab` to move into it, the
+   arrow keys to switch buttons, `Enter` to press one, and `Esc` to close it.
+   After adjusting a mouse selection with `Shift` + arrow keys, the toolbar
+   comes back when you release `Shift`.
 3. Annotations auto-save to `<file>.review.json` in the same folder; the header
    shows "已自動儲存" (saved).
-4. The author reads `<file>.review.json` and acts on each open annotation. Or
-   click **📋 Copy for Claude** to copy unresolved notes as plain text and paste
-   them straight back into your AI chat.
+4. The author reads `<file>.review.json` and acts on each open annotation
+   according to its kind. Or click **📋 Copy for Claude** to copy the
+   unresolved notes, with their kinds and how to handle them, as plain text and
+   paste them straight back into your AI chat.
 5. When you are satisfied, click **☐ Mark review complete** in the header (see
    [Review status](#review-status)).
 
 Long documents get a **↑** button in the bottom-right of the reading pane once
 you scroll down; it scrolls back to the top.
+
+## Annotation kinds
+
+Every annotation has a kind that tells the author what to do with it. The kind
+is shown by color, by a symbol at the start of the highlight and by name on the
+card, so it can be told apart without relying on color; you can change it on the
+card later. Where an annotation also has a comment, the conditions in the
+comment take precedence.
+
+- **※ See comment** (`see-comment`) — Act on the comment text. It may be a change request, a question or extra information; if it is a question, answer it in your reply first — the document does not always need to change.
+- **✓ Agree** (`agree`) — The reviewer agrees with this passage. Do not change it, and there is no need to report on it.
+- **? Explain more** (`explain-more`) — This passage is too brief for readers to follow. Expand it in the document, explaining what it is, why, and how; explaining it only in your reply does not count as done.
+- **⇄ Offer alternatives** (`offer-alternatives`) — The reviewer does not want this decided yet. List 2–3 workable approaches with their trade-offs and ask the user to choose; do not change the document until the user has chosen.
+- **− Delete this text** (`delete-text`) — Delete the quoted text (only the quote, not the whole paragraph), then adjust the surrounding sentences so the passage reads smoothly.
+- **↺ Rethink from first principles** (`rethink-first-principles`) — The premise of this approach may be wrong. Go back to the problem it is meant to solve, reason it through again and report your conclusion; only if the conclusion differs from the current approach, rewrite the design and explain why.
+- **+ State it positively** (`state-positively`) — This passage lists what not to do ("no X, no Y"). Rewrite it to state what to do.
+- **⊘ Drop this feature** (`drop-feature`) — This feature is dropped. Remove it from the document, and also from the other documents of the same change (for example the proposal, design and specs), deleting passages that exist only for it. Report where you removed it.
+
+Only **See comment** needs a comment; the other kinds can be saved with an empty
+one. **Agree** is not a to-do: it is not counted in the unresolved badge, in the
+confirmation before marking a review complete, or in the open count of "Copy
+for Claude", and adding it does not remove a review-complete record.
+Annotations made before 0.7.0 have no kind and are treated as **See comment**,
+whatever their old color was.
 
 ## Review status
 
@@ -81,9 +115,10 @@ whether its review is finished.
   mark again**, and its row in the left list shows a **Changed** label instead of
   **Reviewed**. Changing the text back to the approved version makes it
   "complete" again.
-- Marking with unresolved annotations asks for confirmation. Adding a new
-  annotation to a completed document removes the record (a new comment means the
-  review is open again). Removing the record by hand also asks first.
+- Marking with unresolved annotations (other than **Agree**) asks for
+  confirmation. Adding a new annotation other than **Agree** to a completed
+  document removes the record (a new comment means the review is open again).
+  Removing the record by hand also asks first.
 - If the file on disk is newer than the version on screen, marking is refused
   until you reload, so a record always refers to the text you actually read.
 
@@ -121,8 +156,10 @@ wherever the document goes:
   version or a "conflicted copy".
 - **Renaming or moving** a document: move its `.review.json` with it (`git mv`
   both).
-- **Run 0.6.0 or newer on every device**: older versions drop the review record
-  when they save.
+- **Run 0.7.0 or newer on every device**: 0.5.x drops the review record when it
+  saves, and 0.6.x drops every annotation's kind. An annotation whose comment is
+  empty (for example one marked only **Delete this text**) then loses its kind
+  and becomes an annotation with no content.
 - Line endings, a BOM and trailing spaces are ignored when comparing text, so a
   Windows (CRLF) and a macOS (LF) checkout of the same file agree.
 
@@ -214,9 +251,12 @@ when a document is substantial enough to push:
 > After producing a substantial `.md`, run
 > `npx claudecode-md-reviewer "<absolute path to the md>"` so the user can
 > annotate it. When the user says "continue from my review", read the sibling
-> `<base>.review.json`, process every annotation with `status: "open"` using its
-> `line` + `quote` to locate the text, and revise per the `comment`. If the quote
-> is no longer found, use `context.block` (a snapshot of the paragraph when the
+> `<base>.review.json` and act on every annotation with `status: "open"`
+> according to its `kind` (no `kind` means `see-comment`; `agree` needs no
+> action; how to handle each kind: see "Annotation kinds" in the md-reviewer
+> README), using its `line` + `quote` to locate the text and its `comment` for
+> any further conditions. If the quote is no longer found, use `context.block`
+> (a snapshot of the paragraph when the
 > comment was written, not a target to restore) to find the closest paragraph;
 > treat `line` as a hint. Do not edit the `.review.json` yourself (never write the
 > `review` field: only the user marks a review complete). Report which items you
@@ -269,7 +309,7 @@ Use the instruction (layer 1) for "review when it's worth it" and the hook
       "line": 42,
       "quote": "this logic is wrong",
       "comment": "check for null first",
-      "color": "yellow",
+      "kind": "see-comment",
       "status": "open",
       "id": "a...",
       "createdAt": "...",
@@ -283,7 +323,11 @@ Use the instruction (layer 1) for "review when it's worth it" and the hook
   It follows the paragraph when the document changes, and is saved the next time
   you change an annotation.
 - `quote` — the selected text, so the author can locate it.
-- `comment` — your review note.
+- `comment` — your review note; always a string, and may be `""` for kinds
+  other than `see-comment`.
+- `kind` (0.7.0+) — one of the eight [annotation kinds](#annotation-kinds).
+  Annotations made before 0.7.0 have no `kind` and are treated as `see-comment`.
+- `color` — only on annotations made before 0.7.0; no longer used.
 - `status` — `open` (todo) or `resolved`.
 - `context` (0.6.0+) — the paragraph's Markdown source when the comment was
   written, plus the first line of the paragraphs around it. Used to show what

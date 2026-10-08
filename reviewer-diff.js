@@ -1,4 +1,4 @@
-// MD Reviewer 共用純函式（瀏覽器、server、Node 測試三方共用）：文字正規化、註解重新定位、新舊差異。
+// MD Reviewer 共用純函式（瀏覽器、server、Node 測試三方共用）：文字正規化、註解重新定位、新舊差異、註解分類（kind）。
 // 瀏覽器只掛一個全域 window.MDRDiff；Node 走 module.exports。不碰 DOM。
 (function(root){
 "use strict";
@@ -166,6 +166,25 @@ function textDiff(oldS,newS){
   return out;
 }
 
-const api = { normText, key, sim, typeOf, contextAt, reanchor, textDiff };
+// 註解分類：kind 值與符號（順序＝加註框的排列）。名稱、提示、處理方式在語系檔 kind.<值>.*，顏色在 CSS。
+const KINDS = [
+  { kind:"see-comment", sym:"※" }, { kind:"agree", sym:"✓" },
+  { kind:"explain-more", sym:"?" }, { kind:"offer-alternatives", sym:"⇄" },
+  { kind:"delete-text", sym:"−" }, { kind:"rethink-first-principles", sym:"↺" },
+  { kind:"state-positively", sym:"+" }, { kind:"drop-feature", sym:"⊘" },
+];
+// 檔案裡的 kind 不可信：不是字串、不認得（含 0.7.0 前沒有 kind 的舊註解）一律當 see-comment。畫面與計數只看這個值。
+function kindOf(a){ const k=a && a.kind; return typeof k==="string" && KINDS.some(x=>x.kind===k) ? k : "see-comment"; }
+// 待辦＝沒解決、而且不是「同意」。左側徽章、標記完成前的確認、複製給 Claude 的摘要都用它。
+function isTodo(a){ return a.status!=="resolved" && kindOf(a)!=="agree"; }
+// 新註解：一律帶 kind、comment 一律字串、不帶 color；context 有值才帶。
+function newAnnotation(f){
+  return Object.assign({ line:f.line, quote:f.quote, comment:f.comment==null?"":String(f.comment), kind:kindOf(f),
+    status:"open", id:f.id, createdAt:f.createdAt||new Date().toISOString() }, f.context?{context:f.context}:{});
+}
+// 存檔：以記憶體裡的註解物件為底（陌生欄位、kind／color／context 的原值照帶，沒有的不補），再正規化已知欄位。
+function annToSave(a){ return Object.assign({}, a, { comment:a.comment==null?"":String(a.comment) }); }
+
+const api = { normText, key, sim, typeOf, contextAt, reanchor, textDiff, KINDS, kindOf, isTodo, newAnnotation, annToSave };
 if(typeof module!=="undefined" && module.exports) module.exports=api; else root.MDRDiff=api;
 })(typeof window!=="undefined" ? window : this);

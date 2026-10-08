@@ -3,6 +3,72 @@
 All notable changes to this project are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.7.0] - 2026-10-08
+
+### Added
+- **Selection toolbar.** Selecting text in the article no longer opens the
+  annotation box straight away. A small toolbar appears next to the selection
+  with **Copy** and **Annotate**. **Copy** puts only the selected text, as plain
+  text, on the clipboard (line breaks between paragraphs kept); if the browser
+  refuses the clipboard it falls back to the built-in copy command, and if that
+  fails too the button asks you to press Ctrl+C (⌘C on macOS). The toolbar stays
+  after copying, so you can annotate next. It hides when you click elsewhere,
+  press Esc, change the selection, open or reload a document, open a diagram's
+  zoom view or resize the window; after adjusting a mouse selection with Shift +
+  arrow keys it comes back when Shift is released. It never takes keyboard
+  focus: Tab moves into it, arrow keys switch buttons, Enter presses one, and a
+  screen reader announces whether copying worked.
+- **Eight annotation kinds** replace the four highlight colors, which had no
+  meaning: See comment (default), Agree, Explain more, Offer alternatives,
+  Delete this text, Rethink from first principles, State it positively and Drop
+  this feature. Each kind says how the author should handle the annotation (see
+  "Annotation kinds" in the README). The annotation box offers them as eight
+  options; only See comment needs a comment. Every highlight starts with a small
+  badge showing the kind's symbol, and cards show the kind's name, so kinds can
+  be told apart without relying on color, in light and dark mode. The kind can
+  be changed later on the card. New annotations store a `kind` field and no
+  longer a `color`; `comment` is always a string (`""` when empty).
+- **"Copy for Claude" carries the kinds**: every item is labelled with its kind,
+  the text starts with how to handle each kind used, Agree annotations are listed
+  separately without a number, and an empty comment leaves out the "→" line.
+- **Agree is not a to-do**: it is not counted in the unresolved badge, in the
+  confirmation before marking a review complete or in the open count of "Copy
+  for Claude", and adding it does not remove a review-complete record.
+
+### Changed
+- The annotation box's save button reads **Save** instead of **Annotate**, and a
+  card's delete button reads **Delete annotation** instead of **Delete**, so it
+  is not confused with the Delete this text kind.
+- The annotation box is positioned from its real size when it opens and always
+  stays inside the window; in a short window its content scrolls.
+- Highlight tooltips follow a language switch.
+- `md-reviewer --hook` now suggests handling open annotations according to
+  their `kind`.
+
+### Fixed
+- Selecting other text while the annotation box was open replaced its quote and
+  cleared the half-written comment. The box now keeps its quote, kind and
+  comment, and the new selection is an ordinary browser selection.
+- Opening or reloading a document while the annotation box was open left the box
+  open, so saving it put the old quote on the new document. The box now closes
+  first and the draft is discarded.
+- Saving now keeps annotation fields this version does not know (for example
+  fields added by a newer version) instead of dropping them.
+
+### Notes
+- Backward compatible: `.review.json` files load unchanged and `schema` stays
+  `1`. Annotations created before 0.7.0 have no `kind`; they are shown and
+  handled as See comment, with its color and symbol, whatever their `color` was,
+  and are saved back without gaining a `kind`.
+- **Use 0.7.0 or later on every device** that edits the same `.review.json`.
+  0.6.0 and earlier drop every `kind` when they save, so an annotation with an
+  empty comment (for example one marked only Delete this text) becomes an
+  annotation with no content.
+- Rolling back to 0.6.0: the annotations are all still there, but kinds are not
+  shown and new annotations get the browser's default yellow highlight. The next
+  save in 0.6.0 removes every `kind`; upgrading to 0.7.0 again then shows those
+  annotations as See comment, and the ones with an empty comment stay empty.
+
 ## [0.6.0] - 2026-10-08
 
 ### Added

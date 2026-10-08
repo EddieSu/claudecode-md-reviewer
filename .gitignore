@@ -14,3 +14,6 @@ pins.json
 # OS cruft
 .DS_Store
 Thumbs.db
+
+# Local scratch (manual-test copies, screenshots) — never committed
+.local/
