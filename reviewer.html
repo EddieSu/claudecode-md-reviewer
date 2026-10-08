@@ -17,10 +17,12 @@
     <span class="spacer"></span>
     <select id="lang" data-i18n-title="bar.lang" title="Language"></select>
     <span class="badge" id="saveBadge"></span>
+    <button id="btnDone" style="display:none"></button>
     <button id="btnCopy" data-i18n="bar.copy" data-i18n-title="bar.copyTitle" title="Copy all unresolved annotations as plain text to paste back">📋 Copy for Claude</button>
     <button id="btnExport" data-i18n="bar.export" data-i18n-title="bar.exportTitle" title="Download .review.json">⬇ Export</button>
     <button id="sideToggle" data-i18n-title="bar.sideToggle" title="Show/hide the annotations panel">💬</button>
   </div>
+  <div id="notice" style="display:none"></div>
   <div id="main">
     <div id="nav">
       <div id="navHead">
@@ -55,7 +57,7 @@
 
     <div id="doc"><div id="docInner"><div class="empty" data-i18n-html="doc.empty">
       Waiting for a document…
-    </div></div></div>
+    </div></div><button id="toTop" class="to-top" data-i18n-title="doc.toTop" data-i18n-aria="doc.toTop" title="Back to top" aria-label="Back to top">↑</button></div>
     <div id="side">
       <div id="sideHead">
         <h3 data-i18n="side.title">Annotations</h3>
@@ -97,6 +99,7 @@
     <div id="mmStage" class="mm-stage"><div id="mmCanvas" class="mm-canvas"></div></div>
   </div>
 
+<script src="reviewer-diff.js"></script>
 <script src="reviewer.js"></script>
 </body>
 </html>

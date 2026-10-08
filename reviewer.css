@@ -2,11 +2,13 @@
     --bg:#fbfbfa; --fg:#1f2328; --muted:#6a737d; --border:#e1e4e8;
     --panel:#ffffff; --accent:#3b6ef0; --code-bg:#f3f4f6;
     --hl-yellow:#fff3a3; --hl-green:#b8f0c4; --hl-pink:#ffc9d8; --hl-blue:#bcd9ff;
+    --warn-bg:#fff4d6; --warn-fg:#7a4b00; --del-bg:rgba(224,83,58,.2); --ins-bg:rgba(45,164,78,.25);
   }
   @media (prefers-color-scheme: dark){
     :root{ --bg:#0d1117; --fg:#e6edf3; --muted:#8b949e; --border:#30363d;
       --panel:#161b22; --accent:#539bf5; --code-bg:#1f242c;
-      --hl-yellow:#5c5320; --hl-green:#1f4a2c; --hl-pink:#5a2336; --hl-blue:#1d3a5c; }
+      --hl-yellow:#5c5320; --hl-green:#1f4a2c; --hl-pink:#5a2336; --hl-blue:#1d3a5c;
+      --warn-bg:#3a2c0e; --warn-fg:#f0c56b; --del-bg:rgba(248,81,73,.28); --ins-bg:rgba(63,185,80,.3); }
   }
   *{box-sizing:border-box}
   html,body{margin:0;height:100%}
@@ -138,3 +140,22 @@
   .tagchip:hover{border-color:var(--accent)}
   .tagchip.active{background:var(--accent);color:#fff;border-color:var(--accent)}
   .tagchip .n{opacity:.6;margin-left:4px}
+  #notice{flex:0 0 auto;padding:6px 14px;font-size:13px;background:var(--warn-bg);color:var(--warn-fg);border-bottom:1px solid var(--border)}
+  #notice button{margin-left:8px;padding:2px 10px;font-size:12px}
+  #btnDone.on{border-color:#2da44e;color:#2da44e}
+  #btnDone.warn{border-color:#d1791b;color:#d1791b}
+  .navrev{flex:0 0 auto;font-size:10px;line-height:16px;border-radius:8px;padding:0 6px;color:#fff}
+  .navrev.done{background:#2da44e}
+  .navrev.stale{background:#d1791b}
+  .card .dhead{font-size:11px;color:var(--accent);margin:2px 0 4px}
+  .card .dhead.warn{color:#d1791b}
+  .card .dnote{color:var(--muted)}
+  .card .diff{font-size:12px;font-family:"Cascadia Code",Consolas,monospace;white-space:pre-wrap;word-break:break-word;max-height:140px;overflow:auto;
+    background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:5px 7px;margin-bottom:6px}
+  .card .diff del{background:var(--del-bg);color:inherit}
+  .card .diff ins{background:var(--ins-bg);text-decoration:none}
+  .card details.dwrap summary{font-size:11px;color:var(--accent);cursor:pointer;margin-bottom:4px}
+  .card.gone .meta{font-style:italic}
+  .to-top{position:sticky;bottom:0;display:block;margin:0 -32px 0 auto;z-index:3;width:38px;height:38px;padding:0;border-radius:50%;
+    font-size:18px;line-height:1;box-shadow:0 2px 8px rgba(0,0,0,.18);opacity:0;visibility:hidden;transition:opacity .2s,visibility .2s}
+  .to-top.show{opacity:.9;visibility:visible}

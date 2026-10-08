@@ -3,6 +3,7 @@
 // 擋掉同機其他瀏覽器分頁的偽造請求。
 "use strict";
 const http=require("http"), fs=require("fs"), path=require("path"), os=require("os"), crypto=require("crypto");
+const { normText } = require("./reviewer-diff.js");   // 與前端共用同一份正規化（hash 才會跨平台一致）
 
 const PORT = Number(process.env.MDR_PORT) || 8771;    // 預設 8771；MDR_PORT 可改埠（並存多實例）
 const TOKEN = crypto.randomBytes(16).toString("hex");
@@ -25,10 +26,38 @@ function json(res, code, obj){ send(res, code, JSON.stringify(obj), "application
 function hostOk(req){ const h = req.headers.host || ""; return h === "127.0.0.1:"+PORT || h === "localhost:"+PORT; }
 function sidecarOf(fp){ return fp.replace(/\.md$/i,"") + ".review.json"; }
 function readBody(req, cb){ let b=""; req.on("data",c=>{ b+=c; if(b.length>5e6) req.destroy(); }); req.on("end",()=>{ try{ cb(JSON.parse(b)); }catch(_){ cb(null); } }); }
+function hashOf(text){ return crypto.createHash("sha256").update(normText(text),"utf8").digest("hex"); }   // 文件指紋
+const hashCache = new Map();                      // abs -> {mtimeMs,size,hash}：輪詢時檔案沒變就不重讀重算
+function fileHash(fp){
+  const abs=path.resolve(fp); let st;
+  try{ st=fs.statSync(abs); }catch(_){ return null; }
+  const c=hashCache.get(abs);
+  if(c && c.mtimeMs===st.mtimeMs && c.size===st.size) return c.hash;
+  let h; try{ h=hashOf(fs.readFileSync(abs,"utf8")); }catch(_){ return null; }
+  hashCache.set(abs, {mtimeMs:st.mtimeMs, size:st.size, hash:h});
+  return h;
+}
+function readSidecar(fp){                         // {data:null}=還沒有；{data}=正常；{error}=存在但讀不懂（例如 git 衝突標記）→ 絕不覆寫
+  let raw;
+  try{ raw=fs.readFileSync(sidecarOf(fp),"utf8"); }catch(e){ return e.code==="ENOENT" ? {data:null} : {error:e.message}; }
+  try{ const d=JSON.parse(raw); if(!d || typeof d!=="object" || Array.isArray(d)) throw new Error("not a JSON object"); return {data:d}; }
+  catch(e){ return {error:e.message}; }
+}
+// 受保護寫入（/api/save 與 /api/review 共用）：壞檔不寫、base 對不上不寫、沒管到的欄位原樣保留。
+// 同步讀寫：單執行緒下「讀→比對→寫」中間不會插進別的請求。
+function writeSidecar(fp, base, patch){
+  const cur=readSidecar(fp);
+  if(cur.error) return [409, {ok:false, error:"corrupt", detail:cur.error}];
+  if((base||null)!==((cur.data && cur.data.updatedAt)||null)) return [409, {ok:false, error:"conflict"}];
+  const out=Object.assign({}, cur.data, patch, { updatedAt:new Date().toISOString() });   // patch 裡 undefined 的欄位 → JSON 會略過 = 刪除
+  try{ fs.writeFileSync(sidecarOf(fp), JSON.stringify(out,null,2)); }catch(e){ return [500, {ok:false, error:e.message}]; }
+  return [200, {ok:true, sidecar:sidecarOf(fp), updatedAt:out.updatedAt, review:out.review||null}];
+}
 function annCounts(fp){
-  try{ const a=(JSON.parse(fs.readFileSync(sidecarOf(fp),"utf8")).annotations)||[];
-       return { total:a.length, open:a.filter(x=>x.status!=="resolved").length }; }
-  catch(_){ return { total:0, open:0 }; }
+  const s=readSidecar(fp).data, a=(s && Array.isArray(s.annotations)) ? s.annotations : [];
+  let review=null;                                // 有完成紀錄才讀檔算 hash
+  if(s && s.review && s.review.status==="done") review={ state: s.review.hash===fileHash(fp) ? "done" : "stale", at:s.review.at };
+  return { total:a.length, open:a.filter(x=>x.status!=="resolved").length, review };
 }
 const tagCache = new Map();                       // dir -> 專案標籤(git root 名),避免每次輪詢重走
 function gitRoot(fp){                              // 往上找最近含 .git 的資料夾(.git 檔/資料夾皆算,含 worktree)
@@ -143,7 +172,7 @@ const server = http.createServer((req, res)=>{
     fs.readFile(APP, (e,d)=>{ if(e){ send(res,500,"reviewer.html missing","text/plain"); return; } send(res,200,d,"text/html; charset=utf-8"); });
     return;
   }
-  if(req.method==="GET" && (p==="/reviewer.css" || p==="/reviewer.js")){   // 靜態資產(純程式碼、無祕密,免 token,與 / 同層)
+  if(req.method==="GET" && (p==="/reviewer.css" || p==="/reviewer.js" || p==="/reviewer-diff.js")){   // 靜態資產(純程式碼、無祕密,免 token,與 / 同層)
     const type = p.endsWith(".css") ? "text/css; charset=utf-8" : "text/javascript; charset=utf-8";
     fs.readFile(path.join(__dirname, p.slice(1)), (e,d)=>{ if(e){ send(res,404,"not found","text/plain"); return; } send(res,200,d,type); });
     return;
@@ -160,10 +189,11 @@ const server = http.createServer((req, res)=>{
     if(!fp){ json(res,400,{ok:false,error:"no path"}); return; }
     fs.readFile(fp, "utf8", (e, content)=>{
       if(e){ json(res,404,{ok:false,error:"讀不到檔案: "+e.message}); return; }
-      let annotations=[];
-      try{ const s=JSON.parse(fs.readFileSync(sidecarOf(fp),"utf8")); annotations=s.annotations||[]; }catch(_){/* 尚無 sidecar */}
+      const sc=readSidecar(fp), s=sc.data||{};
       touchHistory(fp);                                     // 記入過往閱讀紀錄
-      json(res,200,{ok:true, path:fp, dir:path.dirname(fp), name:path.basename(fp), content, annotations});
+      json(res,200,{ok:true, path:fp, dir:path.dirname(fp), name:path.basename(fp), content,
+        annotations:Array.isArray(s.annotations)?s.annotations:[], review:s.review||null, updatedAt:s.updatedAt||null,
+        hash:hashOf(content), sidecarError:sc.error||null});
     });
     return;
   }
@@ -189,7 +219,10 @@ const server = http.createServer((req, res)=>{
       if(!fs.existsSync(abs)) continue;                     // 檔案已不存在就略過
       historyOut.push(Object.assign({}, metaOf(abs), annCounts(abs), { lastOpenedAt:h.lastOpenedAt }));
     }
-    json(res,200,{ok:true, queue:queueOut, history:historyOut, pinned:listPinned(), favorites:listFavorites()});
+    let current=null;                                       // 目前開著的文件：讓前端發現「磁碟上已被改」
+    const cur=u.searchParams.get("current");
+    if(cur){ const sc=readSidecar(cur); current={ hash:fileHash(cur), updatedAt:(sc.data && sc.data.updatedAt)||null }; }
+    json(res,200,{ok:true, queue:queueOut, history:historyOut, pinned:listPinned(), favorites:listFavorites(), current});
     return;
   }
 
@@ -277,11 +310,27 @@ const server = http.createServer((req, res)=>{
       if(d.token!==TOKEN){ json(res,403,{ok:false,error:"bad token"}); return; }
       const fp = d.path || "";
       if(!/\.md$/i.test(fp)){ json(res,400,{ok:false,error:"path not .md"}); return; }
-      const out = { file:path.basename(fp), schema:1, updatedAt:new Date().toISOString(), annotations:d.annotations||[] };
-      fs.writeFile(sidecarOf(fp), JSON.stringify(out,null,2), e=>{
-        if(e){ json(res,500,{ok:false,error:e.message}); return; }
-        json(res,200,{ok:true, sidecar:sidecarOf(fp)});
-      });
+      const [code, body] = writeSidecar(fp, d.base, { file:path.basename(fp), schema:1, annotations:Array.isArray(d.annotations)?d.annotations:[] });
+      json(res, code, body);
+    });
+    return;
+  }
+
+  // 審閱完成紀錄：只動 review 欄位。done=true 時 hash 必須等於磁碟現值（畫面上的版本就是磁碟上的版本）。
+  if(req.method==="POST" && p==="/api/review"){
+    readBody(req, d=>{
+      if(!d || d.token!==TOKEN){ json(res,403,{ok:false,error:"bad token"}); return; }
+      const fp=d.path || "";
+      if(!/\.md$/i.test(fp)){ json(res,400,{ok:false,error:"path not .md"}); return; }
+      let disk; try{ disk=hashOf(fs.readFileSync(fp,"utf8")); }catch(e){ json(res,404,{ok:false,error:"file missing"}); return; }
+      let review;                                           // undefined → 刪除紀錄
+      if(d.done){
+        if(!/^[0-9a-f]{64}$/.test(d.hash||"")){ json(res,400,{ok:false,error:"bad hash"}); return; }
+        if(d.hash!==disk){ json(res,409,{ok:false,error:"stale"}); return; }
+        review={ status:"done", at:new Date().toISOString(), hash:d.hash };
+      }
+      const [code, body] = writeSidecar(fp, d.base, { file:path.basename(fp), schema:1, review });
+      json(res, code, body);
     });
     return;
   }
