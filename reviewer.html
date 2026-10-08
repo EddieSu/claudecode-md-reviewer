@@ -55,9 +55,9 @@
       </div>
     </div>
 
-    <div id="doc"><div id="docInner"><div class="empty" data-i18n-html="doc.empty">
+    <div id="doc" tabindex="-1"><div id="docInner"><div class="empty" data-i18n-html="doc.empty">
       Waiting for a document…
-    </div></div><button id="toTop" class="to-top" data-i18n-title="doc.toTop" data-i18n-aria="doc.toTop" title="Back to top" aria-label="Back to top">↑</button></div>
+    </div></div><div id="selBar" role="toolbar" data-i18n-aria="sel.label" aria-label="Actions for selected text" hidden><button type="button" id="selCopy" data-i18n="sel.copy">Copy</button><button type="button" id="selAnno" data-i18n="sel.annotate" tabindex="-1">Annotate</button></div><button id="toTop" class="to-top" data-i18n-title="doc.toTop" data-i18n-aria="doc.toTop" title="Back to top" aria-label="Back to top">↑</button></div>
     <div id="side">
       <div id="sideHead">
         <h3 data-i18n="side.title">Annotations</h3>
@@ -67,14 +67,15 @@
       <div id="sideList"></div>
     </div>
   </div>
+  <div id="selSay" class="sr-only" aria-live="polite"></div>
 
   <div id="pop">
     <div class="quote" id="popQuote"></div>
-    <div class="swatches" id="popSwatch"></div>
+    <fieldset class="kinds" id="popKinds"><legend class="sr-only" data-i18n="pop.kindLegend">Kind</legend></fieldset>
     <textarea id="popText" data-i18n-ph="pop.placeholder" placeholder="Write your review comment… (Ctrl+Enter to save)"></textarea>
     <div class="row">
       <button id="popCancel" data-i18n="pop.cancel">Cancel</button>
-      <button id="popSave" class="primary" data-i18n="pop.save">Annotate</button>
+      <button id="popSave" class="primary" data-i18n="pop.save">Save</button>
     </div>
   </div>
 

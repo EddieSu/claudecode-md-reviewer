@@ -2,15 +2,16 @@
 /* ───────────────────────── state ───────────────────────── */
 const state = {
   file:"", fileName:"", token:"", mdText:"",
-  annotations:[], dirty:false, pending:null, popColor:"yellow",
+  annotations:[], dirty:false, pending:null, popKind:"see-comment",
   sb:null, tagFilter:null,                 // sb=最近一次 sidebar 資料;tagFilter=目前選的專案標籤(null=全部)
   favPaths:new Set(),                      // 目前收藏的路徑集合（決定星號實心/空心）
   hash:"", base:null, review:null,         // hash=畫面上這版文件的指紋;base=載入時 sidecar 的 updatedAt(寫入時帶回);review=完成紀錄
   blocked:null, disk:"", flash:"",         // blocked="corrupt"|"conflict" 時停止存檔;disk="doc"|"sidecar"=磁碟上已被改;flash=短暫提示
   blocks:[], anchors:new Map(), diffs:new Map(),   // 目前文件的區塊、各註解的對位結果、差異快取（都不寫進 sidecar）
+  blockHl:new Set(),                               // 螢光包不住、退回整塊標示的註解 id（不寫進 sidecar）
 };
-const COLORS = ["yellow","green","pink","blue"];
-const COLORHEX = {yellow:"#fff3a3",green:"#b8f0c4",pink:"#ffc9d8",blue:"#bcd9ff"};
+const SYM = Object.fromEntries(MDRDiff.KINDS.map(k=>[k.kind,k.sym]));   // kind → 符號；畫面一律用 kindOf 的結果查，不用檔案原值
+const cmt = a => a.comment==null ? "" : String(a.comment);              // 意見一律當字串（舊檔可能沒有 comment）
 const $ = s => document.querySelector(s);
 
 /* ───────────────────────── i18n ───────────────────────── */
@@ -30,7 +31,7 @@ function applyLocale(){                           // 套用到靜態 DOM + 重�
   document.querySelectorAll("[data-i18n-title]").forEach(el=>{ el.title = t(el.dataset.i18nTitle); });
   document.querySelectorAll("[data-i18n-html]").forEach(el=>{ el.innerHTML = t(el.dataset.i18nHtml); });
   document.querySelectorAll("[data-i18n-aria]").forEach(el=>{ el.setAttribute("aria-label", t(el.dataset.i18nAria)); });
-  renderSide(); if(state.sb) renderSidebar(); updateBadge(); renderDoneBtn(); renderNotice();
+  applyHighlights(); renderSide(); if(state.sb) renderSidebar(); updateBadge(); renderDoneBtn(); renderNotice();   // 螢光的滑鼠提示也跟著換語言
 }
 function pickInitial(codes){                       // 記住的選擇 → 瀏覽器語言最佳匹配 → en → 第一個
   let saved=null; try{ saved=localStorage.getItem("mdr-lang"); }catch(_){}
@@ -253,6 +254,7 @@ function openMermaidModal(svg){
   const vb=svg.viewBox && svg.viewBox.baseVal; let w=0,h=0;
   if(vb && vb.width){ w=vb.width; h=vb.height; } else { const r=svg.getBoundingClientRect(); w=r.width; h=r.height; }
   clone.setAttribute("width",w); clone.setAttribute("height",h);
+  hideToolbar();
   const canvas=$("#mmCanvas"); canvas.innerHTML=""; canvas.appendChild(clone);
   $("#mmModal").style.display="flex"; fitMM();
 }
@@ -280,12 +282,12 @@ function clearHighlights(){
   document.querySelectorAll(".hl-block").forEach(b=>b.classList.remove("hl-block"));
 }
 function applyHighlights(){
-  clearHighlights();
+  clearHighlights(); state.blockHl=new Set();
   for(const a of state.annotations){
     if(anchorOf(a).state==="gone") continue;        // 原段落已刪：舊行號可能是別段，不標
     const block = $('#docInner [data-line="'+a.line+'"]');
     if(!block) continue;
-    if(!wrapQuote(block,a)) block.classList.add("hl-block");
+    if(!wrapQuote(block,a)){ block.classList.add("hl-block"); state.blockHl.add(a.id); }
   }
 }
 function wrapQuote(block,a){
@@ -297,63 +299,149 @@ function wrapQuote(block,a){
     if(idx<0) continue;
     const range=document.createRange();
     range.setStart(n,idx); range.setEnd(n,idx+a.quote.length);
-    const mark=document.createElement("mark");
-    mark.className="anno "+a.color+(a.status==="resolved"?" resolved":"");
-    mark.dataset.id=a.id; mark.title=a.comment;
+    const mark=document.createElement("mark"), k=MDRDiff.kindOf(a);   // class、符號、名稱都取自 kindOf，檔案原值不進畫面
+    mark.className="anno k-"+k+(a.status==="resolved"?" resolved":"");
+    mark.dataset.sym=SYM[k];
+    mark.dataset.id=a.id; mark.title="【"+t("kind."+k+".name")+"】"+cmt(a);
     mark.addEventListener("click",()=>focusCard(a.id));
     try{ range.surroundContents(mark); return true; }catch(e){ return false; }
   }
   return false;
 }
 
-/* ───────────────────────── selection → popover ───────────────────────── */
+/* ───────────────────────── selection → toolbar ───────────────────────── */
+// 工具列出現當下記下：行號、引文（壓空白，給加註）、原始選取（保留換行，給複製）。
+// rekey＝滑鼠選的字被 Shift＋方向鍵微調而收起，放開 Shift 時重新出現；entered＝焦點進過工具列（Tab 只攔第一下）
+const tb={line:0, quote:"", raw:"", rekey:false, entered:false};
+const isMac=/Mac|iPhone|iPad/.test(navigator.platform||"");
+const popOpen=()=>$("#pop").style.display==="block";
+const zoomOpen=()=>$("#mmModal").style.display==="flex";
+function selInfo(){                                // 目前選取：不是空白、起點在文章區塊內才算
+  const s=window.getSelection(); if(!s.rangeCount) return null;
+  const raw=s.toString(), quote=raw.replace(/\s+/g," ").trim(); if(!quote) return null;
+  const n=s.anchorNode, el=n && (n.nodeType===3?n.parentElement:n), block=el && el.closest("[data-line]");
+  if(!block || !$("#docInner").contains(block)) return null;
+  return {s, range:s.getRangeAt(0), line:+block.dataset.line, quote, raw};
+}
+function showToolbar(info, x, y){                  // (x,y)＝視窗座標：水平對齊 x，垂直放在 y 那一行選取的上方，放不下改下方
+  Object.assign(tb, {line:info.line, quote:info.quote, raw:info.raw, rekey:false, entered:false});
+  const bar=$("#selBar"), doc=$("#doc"), dr=doc.getBoundingClientRect(), [copy,anno]=bar.children;
+  copy.textContent=t("sel.copy"); copy.tabIndex=0; anno.tabIndex=-1;
+  bar.hidden=false;
+  const rs=[...info.range.getClientRects()].filter(r=>r.width||r.height);
+  const r=rs.find(r=>y>=r.top && y<=r.bottom) || rs.reduce((a,b)=>Math.abs(b.top+b.bottom-2*y)<Math.abs(a.top+a.bottom-2*y)?b:a, rs[0]) || info.range.getBoundingClientRect();
+  const w=bar.offsetWidth, h=bar.offsetHeight;
+  let top=r.top-h-6; if(top<dr.top+4) top=r.bottom+6;
+  const left=Math.max(dr.left+4, Math.min(x-w/2, dr.left+doc.clientWidth-w-4));
+  bar.style.left=(left-dr.left+doc.scrollLeft)+"px"; bar.style.top=(top-dr.top+doc.scrollTop)+"px";   // 換成 #doc 內容座標 → 捲動時跟著文字走
+}
+function hideToolbar(){
+  tb.rekey=false;
+  const bar=$("#selBar"); if(bar.hidden) return;
+  if(bar.contains(document.activeElement)) $("#doc").focus({preventScroll:true});   // 焦點在工具列裡 → 放回閱讀區
+  bar.hidden=true;
+}
 $("#doc").addEventListener("mouseup",e=>{
-  if($("#pop").contains(e.target) || e.target.closest("#toTop")) return;
-  setTimeout(()=>{
-    const sel=window.getSelection();
-    const text=sel.toString().replace(/\s+/g," ").trim();
-    if(!text){ return; }
-    const anchor=sel.anchorNode;
-    const el=anchor.nodeType===3?anchor.parentElement:anchor;
-    const block=el && el.closest("[data-line]");
-    if(!block || !$("#docInner").contains(block)) return;
-    const rect=sel.getRangeAt(0).getBoundingClientRect();
-    state.pending={line:+block.dataset.line, quote:text};
-    openPopover(rect);
+  if(e.target.closest("#selBar,#toTop,.mm-zoom-btn")) return;
+  const x=e.clientX, y=e.clientY;
+  setTimeout(()=>{                                 // 等瀏覽器定好選取（雙擊、三擊也一樣）
+    if(popOpen() || zoomOpen()) return;            // 加註框開著：只是一般選取，不動草稿；流程圖雙擊：只開放大檢視
+    const info=selInfo(); if(info) showToolbar(info,x,y);
   },10);
 });
-function openPopover(rect){
-  const pop=$("#pop");
+document.addEventListener("mousedown",e=>{ if(!e.target.closest("#selBar")) hideToolbar(); },true);
+$("#selBar").addEventListener("mousedown",e=>e.preventDefault());   // 按工具列不取消選取、也不搶焦點
+document.addEventListener("selectionchange",()=>{
+  if($("#selBar").hidden) return;
+  const raw=window.getSelection().toString(); if(raw===tb.raw) return;
+  hideToolbar(); tb.rekey=!!raw.trim();            // 選取變了就收起；還有字（例如 Shift＋方向鍵微調）→ 放開 Shift 時再出現
+});
+document.addEventListener("keyup",e=>{             // 放開 Shift：在微調後的選取旁重新出現，焦點不動
+  if(e.key!=="Shift" || !tb.rekey) return;
+  tb.rekey=false;
+  const info=!popOpen() && !zoomOpen() && selInfo(); if(!info) return;
+  const s=info.s, rs=[...info.range.getClientRects()].filter(r=>r.width||r.height); if(!rs.length) return;
+  const back=s.anchorNode===s.focusNode ? s.focusOffset<s.anchorOffset
+           : !!(s.anchorNode.compareDocumentPosition(s.focusNode) & Node.DOCUMENT_POSITION_PRECEDING);   // 往回選：被移動的是開頭那端
+  const r=back?rs[0]:rs[rs.length-1];
+  showToolbar(info, back?r.left:r.right, (r.top+r.bottom)/2);
+});
+window.addEventListener("resize",()=>hideToolbar());
+function focusTbBtn(j){ const btns=[...$("#selBar").children]; btns.forEach((b,k)=>b.tabIndex=k===j?0:-1); btns[j].focus(); }
+$("#selBar").addEventListener("focusin",()=>{ tb.entered=true; });
+document.addEventListener("keydown",e=>{           // WAI-ARIA toolbar：只有一顆按鈕在 Tab 順序裡，左右／Home／End 移動，Tab 離開
+  const bar=$("#selBar"); if(bar.hidden) return;
+  if(e.key==="Escape"){ hideToolbar(); return; }
+  const btns=[...bar.children], i=btns.indexOf(document.activeElement);
+  if(i<0){                                         // 焦點在外：只攔第一下 Tab（不含 Shift），直接進工具列，不必先走過文章裡的連結
+    if(e.key==="Tab" && !e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey && !tb.entered){ e.preventDefault(); focusTbBtn(0); }
+    return;
+  }
+  const j={ArrowRight:(i+1)%btns.length, ArrowLeft:(i+btns.length-1)%btns.length, Home:0, End:btns.length-1}[e.key];
+  if(j!=null){ e.preventDefault(); focusTbBtn(j); }
+});
+function say(msg){ const el=$("#selSay"); el.textContent=""; setTimeout(()=>{ el.textContent=msg; },30); }   // 朗讀區：先清空，同一句也會再唸
+async function copySelection(){                    // 只放純文字：剪貼簿 API → 內建複製指令 → 請使用者自己按 Ctrl+C
+  const btn=$("#selCopy"), text=tb.raw; let ok=false;
+  try{ await navigator.clipboard.writeText(text); ok=true; }
+  catch(_){
+    const onCopy=ev=>{ ev.clipboardData.setData("text/plain",text); ev.preventDefault(); };   // 擋掉預設內容，不帶格式
+    document.addEventListener("copy",onCopy);
+    try{ ok=document.execCommand("copy"); }catch(_){ ok=false; }
+    document.removeEventListener("copy",onCopy);
+  }
+  clearTimeout(copySelection.t);
+  if(ok){ btn.textContent=t("sel.copied"); say(t("sel.saidCopied")); copySelection.t=setTimeout(()=>{ btn.textContent=t("sel.copy"); },800); }
+  else { btn.textContent=t(isMac?"sel.pressCmdC":"sel.pressCtrlC"); say(t(isMac?"sel.saidFailMac":"sel.saidFail")); }   // 工具列與選取都留著
+}
+$("#selCopy").addEventListener("click",copySelection);
+$("#selAnno").addEventListener("click",()=>{       // 加註框位置當下重算：選取還在就對齊選取，否則對齊工具列
+  const s=window.getSelection(), same=s.rangeCount && s.toString()===tb.raw;
+  const ref=same ? s.getRangeAt(0).getBoundingClientRect() : $("#selBar").getBoundingClientRect();
+  state.pending={line:tb.line, quote:tb.quote};
+  openPopover(ref);
+});
+
+/* ───────────────────────── popover ───────────────────────── */
+$("#popKinds").insertAdjacentHTML("beforeend", MDRDiff.KINDS.map(({kind,sym})=>   // 八個分類選項（兩欄，一列一列由左到右）
+  '<label class="kopt" data-i18n-title="kind.'+kind+'.hint"><input type="radio" name="kind" value="'+kind+'">'+
+  '<span class="kb k-'+kind+'" aria-hidden="true">'+sym+'</span><span><span data-i18n="kind.'+kind+'.name"></span>'+
+  (kind==="see-comment" ? ' · <span class="kdef" data-i18n="pop.default"></span>' : '')+'</span></label>').join(""));
+function openPopover(rect){                        // 先顯示，再用實際大小定位：預設放下方、放不下放上方，最後夾在視窗內（離邊 12px）
+  hideToolbar();
+  const pop=$("#pop"), m=12;
   $("#popQuote").textContent="「"+state.pending.quote+"」";
-  $("#popText").value=""; state.popColor="yellow"; renderSwatch();
-  pop.style.display="block";
-  let top=rect.bottom+8, left=rect.left;
-  const pw=300, ph=pop.offsetHeight||200;
-  if(left+pw>innerWidth-12) left=innerWidth-pw-12;
-  if(top+ph>innerHeight-12) top=Math.max(12,rect.top-ph-8);
-  pop.style.left=left+"px"; pop.style.top=top+"px";
+  $("#popText").value=""; setPopKind("see-comment");   // 每次都預設「見說明」
+  pop.style.display="block"; pop.scrollTop=0;
+  const w=pop.offsetWidth, h=pop.offsetHeight;
+  let top=rect.bottom+8; if(top+h>innerHeight-m) top=rect.top-h-8;
+  pop.style.left=Math.max(m, Math.min(rect.left, innerWidth-w-m))+"px";
+  pop.style.top=Math.max(m, Math.min(top, innerHeight-h-m))+"px";
   $("#popText").focus();
 }
-function closePopover(){ $("#pop").style.display="none"; state.pending=null; }
-function renderSwatch(){
-  $("#popSwatch").innerHTML = COLORS.map(c=>`<div class="sw${c===state.popColor?" sel":""}" data-c="${c}" style="background:${COLORHEX[c]}"></div>`).join("");
+function closePopover(){
+  const was=popOpen(); $("#pop").style.display="none"; state.pending=null;
+  if(was) $("#doc").focus({preventScroll:true});   // 關閉後焦點回閱讀區
 }
-$("#popSwatch").addEventListener("click",e=>{ const c=e.target.dataset.c; if(c){ state.popColor=c; renderSwatch(); }});
+function setPopKind(k){                            // 只有「見說明」必須寫意見；其他七類可留空，提示文字跟著換
+  state.popKind=k; $('#popKinds input[value="'+k+'"]').checked=true;
+  const ta=$("#popText"); ta.dataset.i18nPh = k==="see-comment" ? "pop.placeholder" : "pop.placeholderOptional"; ta.placeholder=t(ta.dataset.i18nPh);
+}
+$("#popKinds").addEventListener("change",e=>setPopKind(e.target.value));
+$("#pop").addEventListener("keydown",e=>{ if(e.key==="Escape") closePopover(); });   // 加註框裡任何地方按 Esc 都關閉
 $("#popCancel").addEventListener("click",closePopover);
 $("#popSave").addEventListener("click",saveAnnotation);
-$("#popText").addEventListener("keydown",e=>{ if(e.key==="Enter"&&(e.ctrlKey||e.metaKey)) saveAnnotation(); if(e.key==="Escape") closePopover(); });
+$("#popText").addEventListener("keydown",e=>{ if(e.key==="Enter"&&(e.ctrlKey||e.metaKey)) saveAnnotation(); });
 function saveAnnotation(){
-  const comment=$("#popText").value.trim();
-  if(!comment){ $("#popText").focus(); return; }
+  const comment=$("#popText").value.trim(), kind=state.popKind;
+  if(!comment && kind==="see-comment"){ $("#popText").focus(); return; }
   const context=MDRDiff.contextAt(state.blocks, state.blocks.findIndex(b=>b.line===state.pending.line));   // 加註當下的段落原文＋前後鄰居
-  state.annotations.push(Object.assign({
+  state.annotations.push(MDRDiff.newAnnotation({
     id:"a"+Date.now().toString(36)+Math.floor(performance.now()).toString(36),
-    line:state.pending.line, quote:state.pending.quote, comment,
-    color:state.popColor, status:"open", createdAt:new Date().toISOString()
-  }, context?{context}:{}));
+    line:state.pending.line, quote:state.pending.quote, comment, kind, context }));
   closePopover(); window.getSelection().removeAllRanges();
   applyHighlights(); renderSide(); markDirty();
-  if(state.review) setReview(false).then(ok=>{ if(ok) flash(t("done.autoCleared")); });   // 又有新意見 → 不算完成
+  if(state.review && kind!=="agree") setReview(false).then(ok=>{ if(ok) flash(t("done.autoCleared")); });   // 新增待辦 → 不算完成；「同意」不影響
 }
 
 /* ───────────────────────── sidebar ───────────────────────── */
@@ -363,16 +451,19 @@ function renderSide(){
   const items=state.annotations.filter(a=>showR||a.status!=="resolved").sort((a,b)=>a.line-b.line);
   if(!state.fileName){ list.innerHTML='<div class="empty">'+t("side.noFile")+'</div>'; return; }
   if(!items.length){ list.innerHTML='<div class="empty">'+t("side.noAnno")+'</div>'; return; }
-  list.innerHTML=items.map(a=>{ const st=anchorOf(a).state; return `
+  list.innerHTML=items.map(a=>{ const st=anchorOf(a).state, k=MDRDiff.kindOf(a), c=cmt(a); return `
     <div class="card${a.status==="resolved"?" resolved":""}${st==="gone"?" gone":""}" data-id="${escapeHtml(a.id)}">
       <div class="meta">
-        <span class="dot" style="background:${COLORHEX[a.color]||"#ccc"}"></span>
+        <span class="kb k-${k}" aria-hidden="true">${SYM[k]}</span>
+        <select class="kindSel" title="${escapeHtml(t("kind."+k+".hint"))}" aria-label="${escapeHtml(t("pop.kindLegend"))}">${MDRDiff.KINDS.map(x=>
+          `<option value="${x.kind}"${x.kind===k?" selected":""}>${escapeHtml(t("kind."+x.kind+".name"))}</option>`).join("")}</select>
         <span>${st==="gone"?escapeHtml(t("card.oldLine",{line:a.line})):"L"+a.line}</span><span class="spacer" style="flex:1"></span>
         <span>${a.status==="resolved"?t("card.resolvedTag"):""}</span>
       </div>
       <div class="q" title="${escapeHtml(t("card.quoteTitle"))}">${escapeHtml(a.quote||"")}</div>
+      ${k==="delete-text" && state.blockHl.has(a.id) ? '<div class="bnote">'+escapeHtml(t("card.blockNote"))+'</div>' : ""}
       ${changeHtml(a)}
-      <div class="c">${escapeHtml(a.comment)}</div>
+      ${c ? `<div class="c">${escapeHtml(c)}</div>` : ""}
       <div class="acts">
         ${st==="gone"?"":`<a data-act="goto">${t("card.goto")}</a>`}
         <a data-act="toggle">${a.status==="resolved"?t("card.reopen"):t("card.markResolve")}</a>
@@ -402,11 +493,16 @@ function changeHtml(a){                            // 卡片裡的「原文狀�
   return "";
 }
 $("#sideList").addEventListener("click",e=>{
-  const card=e.target.closest(".card"); if(!card) return;
+  const card=e.target.closest(".card"); if(!card || e.target.closest("select")) return;   // 分類選單由 change 處理
   const id=card.dataset.id, act=e.target.dataset.act;
   if(act==="toggle"){ const a=state.annotations.find(x=>x.id===id); a.status=a.status==="resolved"?"open":"resolved"; applyHighlights(); renderSide(); markDirty(); }
   else if(act==="del"){ state.annotations=state.annotations.filter(x=>x.id!==id); applyHighlights(); renderSide(); markDirty(); }
   else gotoAnno(id);
+});
+$("#sideList").addEventListener("change",e=>{       // 卡片改分類：只改 kind，意見、狀態、color、完成紀錄都不動
+  if(!e.target.matches("select.kindSel")) return;
+  const a=state.annotations.find(x=>x.id===e.target.closest(".card").dataset.id); if(!a) return;
+  a.kind=e.target.value; applyHighlights(); renderSide(); markDirty();
 });
 $("#showResolved").addEventListener("change",renderSide);
 function gotoAnno(id){
@@ -421,9 +517,12 @@ function focusCard(id){
 }
 
 /* ───────────────────────── data layer (server) ───────────────────────── */
-function buildSidecar(){                          // 唯一的欄位白名單：匯出與自動存檔共用，記憶體裡算出來的東西不會漏進檔案
+// 匯出與自動存檔共用：每則註解＝記憶體裡的物件（較新版本加的陌生欄位照帶）蓋上已知欄位的正規化值（annToSave）。
+// 規則：開檔後算出來的暫存值（對位結果、差異、是否退回整塊標示…）一律放在 state 裡以 id 查詢的表或集合，
+// 不得掛在註解物件上，否則會被寫進檔案。renderDoc 寫回的 line、context 是刻意要落地的已知欄位，不算暫存值。
+function buildSidecar(){
   return Object.assign({ file:state.fileName, schema:1, updatedAt:new Date().toISOString() }, state.review?{review:state.review}:{}, {
-    annotations:state.annotations.map(a=>Object.assign({line:a.line,quote:a.quote,comment:a.comment,color:a.color,status:a.status,id:a.id,createdAt:a.createdAt}, a.context?{context:a.context}:{})) });
+    annotations:state.annotations.map(a=>MDRDiff.annToSave(a)) });
 }
 function updateBadge(msg){
   const b=$("#saveBadge");
@@ -462,6 +561,7 @@ async function saveToServer(){
   else if(d.error!=="switched") failWrite(d);
 }
 async function loadFile(absPath){
+  closePopover(); hideToolbar();                   // 先關加註框與工具列：草稿直接捨棄（等同取消），不會寫進新文件
   clearTimeout(saveTimer); if(state.dirty && !state.blocked) saveToServer(); await writeChain;   // 先把手上的存完，才不會存到別的檔
   try{
     const r=await fetch("/api/file?path="+encodeURIComponent(absPath)+"&token="+encodeURIComponent(state.token));
@@ -494,7 +594,7 @@ async function setReview(done){
 $("#btnDone").addEventListener("click", async()=>{
   if(!state.file || state.blocked) return;
   if(reviewState()==="done"){ if(confirm(t("done.confirmUndo"))) setReview(false); return; }
-  const open=state.annotations.filter(a=>a.status!=="resolved").length;
+  const open=state.annotations.filter(a=>MDRDiff.isTodo(a)).length;   // 只算待辦，「同意」不算
   if(open && !confirm(t("done.confirmOpen",{n:open}))) return;
   if(await setReview(true)) dequeue(state.file);  // 完成了就不再是「本次待審」
 });
@@ -553,12 +653,18 @@ $("#btnExport").addEventListener("click",()=>{
 });
 $("#btnCopy").addEventListener("click",async()=>{
   if(!state.annotations.length){ alert(t("msg.noAnnotations")); return; }
-  const open=state.annotations.filter(a=>a.status!=="resolved").sort((a,b)=>a.line-b.line);
+  const byLine=(a,b)=>a.line-b.line, K=MDRDiff.kindOf, nm=a=>"【"+t("kind."+K(a)+".name")+"】";
+  const open=state.annotations.filter(a=>MDRDiff.isTodo(a)).sort(byLine);                     // 有編號的待辦
+  const agree=state.annotations.filter(a=>a.status!=="resolved" && K(a)==="agree").sort(byLine);   // 「同意」另列、不編號
   const done=state.annotations.filter(a=>a.status==="resolved");
   const mk=a=>{ const s=anchorOf(a).state; return s==="changed"||s==="gone"||s==="unverified" ? t("copy."+s) : ""; };   // 原文狀態註記
+  const arrow=a=>cmt(a) ? "→ "+cmt(a) : "";        // 意見空白就省略箭頭
   let out=t("copy.header",{file:state.fileName})+t("copy.summary",{total:state.annotations.length,open:open.length});
-  open.forEach((a,i)=>{ out+="["+(i+1)+"] L"+a.line+"「"+a.quote+"」"+mk(a)+"\n→ "+a.comment+"\n\n"; });
-  if(done.length){ out+=t("copy.resolvedSection")+done.map(a=>"- L"+a.line+"「"+a.quote+"」"+mk(a)+"→ "+a.comment).join("\n")+"\n"; }
+  const used=[...new Set(open.map(K))];            // 分類說明：依第一次出現的順序；全是「見說明」就省略
+  if(used.some(k=>k!=="see-comment")) out+=t("copy.kindsHead")+used.map(k=>t("copy.kindLine",{name:t("kind."+k+".name"),how:t("kind."+k+".how")})).join("")+"\n";
+  open.forEach((a,i)=>{ out+="["+(i+1)+"] L"+a.line+nm(a)+"「"+a.quote+"」"+mk(a)+"\n"+(cmt(a)?arrow(a)+"\n":"")+"\n"; });
+  if(agree.length){ out+=t("copy.agreeSection")+agree.map(a=>"- L"+a.line+"「"+a.quote+"」"+mk(a)+arrow(a)).join("\n")+"\n"+(done.length?"\n":""); }
+  if(done.length){ out+=t("copy.resolvedSection")+done.map(a=>"- L"+a.line+nm(a)+"「"+a.quote+"」"+mk(a)+arrow(a)).join("\n")+"\n"; }
   try{ await navigator.clipboard.writeText(out); $("#btnCopy").textContent=t("bar.copied"); setTimeout(()=>$("#btnCopy").textContent=t("bar.copy"),1500); }
   catch(e){ prompt(t("msg.copyFail"),out); }
 });
