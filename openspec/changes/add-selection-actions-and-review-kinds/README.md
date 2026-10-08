@@ -6,6 +6,15 @@
 
 - [proposal](./proposal.md) — proposal
 - [design](./design.md) — design
+- [tasks](./tasks.md) — tasks
+
+## 📁 Specs
+
+- [annotation-kinds](./specs/annotation-kinds/spec.md) — spec
+- [back-to-top](./specs/back-to-top/spec.md) — spec
+- [review-status](./specs/review-status/spec.md) — spec
+- [selection-actions](./specs/selection-actions/spec.md) — spec
+- [sidecar-integrity](./specs/sidecar-integrity/spec.md) — spec
 
 ## 🗓️ Metadata
 
