@@ -67,13 +67,25 @@ open manually.
    arrow keys to switch buttons, `Enter` to press one, and `Esc` to close it.
    After adjusting a mouse selection with `Shift` + arrow keys, the toolbar
    comes back when you release `Shift`.
-3. Annotations auto-save to `<file>.review.json` in the same folder; the header
+
+   The quoted text is colored in the article, also when it spans bold text,
+   code, links or several paragraphs; each paragraph's colored text starts with
+   the kind's badge. A line on a block's left instead means the quoted text can
+   no longer be found there (for example the document was edited), or the
+   annotation is on a diagram.
+3. For comments on the whole document that are not tied to a passage, use the
+   **Other comments** box below the article. It saves automatically like
+   annotations. It has no resolved state: clear it once its comments have been
+   handled. Writing into an empty box on a document marked complete removes the
+   review-complete record, like adding a to-do annotation.
+4. Annotations auto-save to `<file>.review.json` in the same folder; the header
    shows "已自動儲存" (saved).
-4. The author reads `<file>.review.json` and acts on each open annotation
-   according to its kind. Or click **📋 Copy for Claude** to copy the
-   unresolved notes, with their kinds and how to handle them, as plain text and
-   paste them straight back into your AI chat.
-5. When you are satisfied, click **☐ Mark review complete** in the header (see
+5. The author reads `<file>.review.json` and acts on each open annotation
+   according to its kind, and on the other comments. Or click **📋 Copy for
+   Claude** to copy the other comments and the unresolved notes, with their kinds
+   and how to handle them, as plain text and paste them straight back into your
+   AI chat.
+6. When you are satisfied, click **☐ Mark review complete** in the header (see
    [Review status](#review-status)).
 
 Long documents get a **↑** button in the bottom-right of the reading pane once
@@ -170,8 +182,9 @@ documents are in that machine's lists.
 
 If a `.review.json` cannot be read (for example, it has git merge-conflict
 markers), the reviewer says so and **does not save** until you fix it, so it never
-overwrites the file. To fix a conflict, merge the two `annotations` arrays and
-keep either `updatedAt`. Likewise, if another tab or device saved annotations
+overwrites the file. To fix a conflict, merge the two `annotations` arrays (and
+the two `generalComment` texts, if both sides have one) and keep either
+`updatedAt`. Likewise, if another tab or device saved annotations
 after you opened the document, your save is refused with a prompt to reload
 instead of overwriting their changes.
 
@@ -258,9 +271,15 @@ when a document is substantial enough to push:
 > any further conditions. If the quote is no longer found, use `context.block`
 > (a snapshot of the paragraph when the
 > comment was written, not a target to restore) to find the closest paragraph;
-> treat `line` as a hint. Do not edit the `.review.json` yourself (never write the
-> `review` field: only the user marks a review complete). Report which items you
-> handled and let the user mark them resolved.
+> treat `line` as a hint. The file may also have a top-level `generalComment`:
+> the user's comments on the whole document, not tied to a line. Handle it like a
+> `see-comment` annotation even when there are no open annotations or the document
+> is marked complete; it has no status and may be left from an earlier round, so
+> first check whether the document already satisfies it, and say so instead of
+> applying it twice. Do not edit the `.review.json` yourself (never write the
+> `review` field: only the user marks a review complete; never change or clear
+> `generalComment`). Report which items you handled and let the user mark them
+> resolved.
 
 Because the reviewer **polls every 4 seconds**, you only need it open once; later
 pushes appear in the **📥 To review** list automatically.
@@ -315,7 +334,8 @@ Use the instruction (layer 1) for "review when it's worth it" and the hook
       "createdAt": "...",
       "context": { "block": "If x then this logic is wrong.", "prev": "## Rules", "next": "- step two" }
     }
-  ]
+  ],
+  "generalComment": "The structure is loose; put the conclusion first."
 }
 ```
 
@@ -335,6 +355,9 @@ Use the instruction (layer 1) for "review when it's worth it" and the hook
 - `review` (0.6.0+, optional) — present only when the document is marked review
   complete; `hash` is a SHA-256 fingerprint of the text that was approved.
   Written only by the reviewer UI.
+- `generalComment` (0.8.0+, optional) — the **Other comments** text: comments on
+  the whole document, not tied to a line. Always a string; absent when the box is
+  blank. Versions 0.6.0–0.7.x keep it when they save; 0.5.x and earlier drop it.
 
 ## Architecture & security
 

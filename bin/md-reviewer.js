@@ -116,7 +116,10 @@ function installHook(settingsPath) {
     "  so the user can annotate it; then read the sibling <base>.review.json and\n" +
     "  act on each annotation whose status is \"open\" according to its \"kind\"\n" +
     "  (no kind means \"see-comment\"; \"agree\" needs no action). How to handle\n" +
-    "  each kind: see \"Annotation kinds\" in the md-reviewer README.\n"
+    "  each kind: see \"Annotation kinds\" in the md-reviewer README.\n" +
+    "  A top-level \"generalComment\" holds comments on the whole document: handle\n" +
+    "  it like \"see-comment\" even when nothing is open; it has no status and may\n" +
+    "  be left from an earlier round, so check before applying it twice.\n"
   );
 }
 

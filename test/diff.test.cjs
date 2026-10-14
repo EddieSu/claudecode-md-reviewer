@@ -162,4 +162,19 @@ t("newAnnotation：一定有 kind、comment 是字串、沒有 color", ()=>{
   assert.strictEqual(D.newAnnotation({ id:"z", line:1, quote:"q", comment:"c", kind:"bogus" }).kind, "see-comment");
 });
 
+t("locateQuote 跨片段、跨段、忽略空白；只有空白的中間片段整個上色；不回空範圍", ()=>{
+  assert.deepStrictEqual(D.locateQuote(["第三段 A。","第四段 B。"], "第三段 A。 第四段 B。", 1), [[0,0,6],[1,0,6]]);
+  assert.deepStrictEqual(D.locateQuote(["有","粗體"," ","code"], "有粗體 code", 4), [[0,0,1],[1,0,2],[2,0,1],[3,0,4]]);
+  assert.deepStrictEqual(D.locateQuote(["ab ","cd"], "b", 2), [[0,1,2]]);
+  assert.deepStrictEqual(D.locateQuote(["a ","\n","b"], "a b", 3), [[0,0,2],[1,0,1],[2,0,1]]);   // 片段尾的空白也塗，不留縫
+  assert.deepStrictEqual(D.locateQuote(["x","  ","y"], "y", 3), [[2,0,1]]);   // 起點前的空白片段不回空範圍
+});
+
+t("locateQuote 起點必須在區塊內；找不到、空引文回 null", ()=>{
+  assert.strictEqual(D.locateQuote(["區塊","後面才有 X"], "X", 1), null);
+  assert.deepStrictEqual(D.locateQuote(["X 在區塊","X 在後面"], "X", 1), [[0,0,1]]);   // 取第一個
+  assert.strictEqual(D.locateQuote(["abc"], "abd", 1), null);
+  assert.strictEqual(D.locateQuote(["abc"], "  ", 1), null);
+});
+
 console.log(`\n${n} checks passed`);

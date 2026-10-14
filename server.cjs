@@ -193,6 +193,7 @@ const server = http.createServer((req, res)=>{
       touchHistory(fp);                                     // 記入過往閱讀紀錄
       json(res,200,{ok:true, path:fp, dir:path.dirname(fp), name:path.basename(fp), content,
         annotations:Array.isArray(s.annotations)?s.annotations:[], review:s.review||null, updatedAt:s.updatedAt||null,
+        generalComment:typeof s.generalComment==="string"?s.generalComment:"",
         hash:hashOf(content), sidecarError:sc.error||null});
     });
     return;
@@ -310,7 +311,9 @@ const server = http.createServer((req, res)=>{
       if(d.token!==TOKEN){ json(res,403,{ok:false,error:"bad token"}); return; }
       const fp = d.path || "";
       if(!/\.md$/i.test(fp)){ json(res,400,{ok:false,error:"path not .md"}); return; }
-      const [code, body] = writeSidecar(fp, d.base, { file:path.basename(fp), schema:1, annotations:Array.isArray(d.annotations)?d.annotations:[] });
+      const patch={ file:path.basename(fp), schema:1, annotations:Array.isArray(d.annotations)?d.annotations:[] };
+      if("generalComment" in d) patch.generalComment = typeof d.generalComment==="string" && d.generalComment.trim() ? d.generalComment : undefined;   // 有帶鍵才管（舊版前端不帶 → 不動）；空白 → undefined → 移除
+      const [code, body] = writeSidecar(fp, d.base, patch);
       json(res, code, body);
     });
     return;

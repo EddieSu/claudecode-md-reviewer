@@ -9,6 +9,7 @@ const state = {
   blocked:null, disk:"", flash:"",         // blocked="corrupt"|"conflict" 時停止存檔;disk="doc"|"sidecar"=磁碟上已被改;flash=短暫提示
   blocks:[], anchors:new Map(), diffs:new Map(),   // 目前文件的區塊、各註解的對位結果、差異快取（都不寫進 sidecar）
   blockHl:new Set(),                               // 螢光包不住、退回整塊標示的註解 id（不寫進 sidecar）
+  generalComment:"", generalEdited:false, generalOld:false,   // 其它意見；這次開檔後改過才送；伺服器太舊（開檔回應沒有這個鍵）
 };
 const SYM = Object.fromEntries(MDRDiff.KINDS.map(k=>[k.kind,k.sym]));   // kind → 符號；畫面一律用 kindOf 的結果查，不用檔案原值
 const cmt = a => a.comment==null ? "" : String(a.comment);              // 意見一律當字串（舊檔可能沒有 comment）
@@ -290,23 +291,28 @@ function applyHighlights(){
     if(!wrapQuote(block,a)){ block.classList.add("hl-block"); state.blockHl.add(a.id); }
   }
 }
-function wrapQuote(block,a){
-  if(!a.quote) return false;
-  const w=document.createTreeWalker(block,NodeFilter.SHOW_TEXT);
-  let n;
-  while(n=w.nextNode()){
-    const idx=n.nodeValue.indexOf(a.quote);
-    if(idx<0) continue;
-    const range=document.createRange();
-    range.setStart(n,idx); range.setEnd(n,idx+a.quote.length);
-    const mark=document.createElement("mark"), k=MDRDiff.kindOf(a);   // class、符號、名稱都取自 kindOf，檔案原值不進畫面
-    mark.className="anno k-"+k+(a.status==="resolved"?" resolved":"");
-    mark.dataset.sym=SYM[k];
-    mark.dataset.id=a.id; mark.title="【"+t("kind."+k+".name")+"】"+cmt(a);
-    mark.addEventListener("click",()=>focusCard(a.id));
-    try{ range.surroundContents(mark); return true; }catch(e){ return false; }
+function wrapQuote(block,a){                       // 引文可跨格式、跨段：從區塊開頭往後收文字片段，每個片段的範圍各包一個 mark
+  const need=(a.quote||"").replace(/\s+/g,"").length; if(!need) return false;
+  const w=document.createTreeWalker($("#docInner"), NodeFilter.SHOW_TEXT,
+    {acceptNode:n=>n.parentElement.closest(".mermaid") ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT});   // 流程圖整塊跳過 → 一律退回色條
+  w.currentNode=block;
+  const nodes=[]; let first=0, extra=0;
+  for(let n; extra<need && (n=w.nextNode()); ){    // 離開區塊後，收到的字（不算空白）夠引文長就停
+    if(block.contains(n)) first++; else extra+=n.nodeValue.replace(/\s+/g,"").length;
+    nodes.push(n);
   }
-  return false;
+  const hit=MDRDiff.locateQuote(nodes.map(n=>n.nodeValue), a.quote, first); if(!hit) return false;
+  const k=MDRDiff.kindOf(a); let prev=null;       // class、符號、名稱都取自 kindOf，檔案原值不進畫面
+  for(const [i,from,to] of hit){
+    const n=nodes[i], range=document.createRange(), mark=document.createElement("mark"), b=n.parentElement.closest("[data-line]");
+    range.setStart(n,from); range.setEnd(n,to);
+    mark.className="anno k-"+k+(a.status==="resolved"?" resolved":"");
+    if(b!==prev){ mark.dataset.sym=SYM[k]; prev=b; }   // 色章每段一個（同段被格式切開的片段不重複）
+    mark.dataset.id=a.id; mark.title="【"+t("kind."+k+".name")+"】"+cmt(a);
+    mark.addEventListener("click",ev=>{ ev.stopPropagation(); focusCard(a.id); });   // 螢光包螢光：只跳裡層自己的卡片
+    range.surroundContents(mark);                  // 範圍都在單一文字片段內，不會丟例外
+  }
+  return true;
 }
 
 /* ───────────────────────── selection → toolbar ───────────────────────── */
@@ -319,9 +325,20 @@ const zoomOpen=()=>$("#mmModal").style.display==="flex";
 function selInfo(){                                // 目前選取：不是空白、起點在文章區塊內才算
   const s=window.getSelection(); if(!s.rangeCount) return null;
   const raw=s.toString(), quote=raw.replace(/\s+/g," ").trim(); if(!quote) return null;
-  const n=s.anchorNode, el=n && (n.nodeType===3?n.parentElement:n), block=el && el.closest("[data-line]");
+  const range=s.getRangeAt(0), n=firstSelectedText(range), block=n && n.parentElement.closest("[data-line]");
   if(!block || !$("#docInner").contains(block)) return null;
-  return {s, range:s.getRangeAt(0), line:+block.dataset.line, quote, raw};
+  return {s, range, line:+block.dataset.line, quote, raw};
+}
+function firstSelectedText(range){                 // 選取範圍裡第一個「選到的部分有非空白字」的文字片段＝引文第一個字所在；從空白處、段落空隙、分隔線開始拖也不會算到上一段
+  const root=range.commonAncestorContainer;
+  if(root.nodeType===3) return root;
+  const w=document.createTreeWalker(root,NodeFilter.SHOW_TEXT);
+  for(let n; (n=w.nextNode()); ){
+    if(!range.intersectsNode(n)) continue;
+    const from=n===range.startContainer?range.startOffset:0, to=n===range.endContainer?range.endOffset:n.length;
+    if(/\S/.test(n.nodeValue.slice(from,to))) return n;
+  }
+  return null;
 }
 function showToolbar(info, x, y){                  // (x,y)＝視窗座標：水平對齊 x，垂直放在 y 那一行選取的上方，放不下改下方
   Object.assign(tb, {line:info.line, quote:info.quote, raw:info.raw, rekey:false, entered:false});
@@ -342,7 +359,7 @@ function hideToolbar(){
   bar.hidden=true;
 }
 $("#doc").addEventListener("mouseup",e=>{
-  if(e.target.closest("#selBar,#toTop,.mm-zoom-btn")) return;
+  if(e.target.closest("#selBar,#toTop,.mm-zoom-btn,#general")) return;
   const x=e.clientX, y=e.clientY;
   setTimeout(()=>{                                 // 等瀏覽器定好選取（雙擊、三擊也一樣）
     if(popOpen() || zoomOpen()) return;            // 加註框開著：只是一般選取，不動草稿；流程圖雙擊：只開放大檢視
@@ -522,7 +539,7 @@ function focusCard(id){
 // 不得掛在註解物件上，否則會被寫進檔案。renderDoc 寫回的 line、context 是刻意要落地的已知欄位，不算暫存值。
 function buildSidecar(){
   return Object.assign({ file:state.fileName, schema:1, updatedAt:new Date().toISOString() }, state.review?{review:state.review}:{}, {
-    annotations:state.annotations.map(a=>MDRDiff.annToSave(a)) });
+    annotations:state.annotations.map(a=>MDRDiff.annToSave(a)) }, state.generalComment.trim()?{generalComment:state.generalComment}:{});
 }
 function updateBadge(msg){
   const b=$("#saveBadge");
@@ -530,9 +547,9 @@ function updateBadge(msg){
   if(state.dirty){ b.textContent=t("save.saving"); b.className="badge dirty"; }
   else b.textContent="";
 }
-let saveTimer=null;
+let saveTimer=null, edits=0;                       // edits：每次變更 +1，存檔回來時沒再變過才算存完
 function markDirty(){
-  state.dirty=true; clearTimeout(saveTimer);
+  state.dirty=true; edits++; clearTimeout(saveTimer);
   if(state.blocked){ updateBadge(t("save.paused")); return; }   // 壞檔/衝突：不存，badge 明講沒存
   updateBadge(); saveTimer=setTimeout(saveToServer,500);
 }
@@ -551,13 +568,14 @@ function serverWrite(url, payload){                // 所有寫入排隊一筆�
   return (writeChain=writeChain.then(run,run));
 }
 function failWrite(d){                             // 409：壞檔 / 別處已更新 → 停止自動存檔，請使用者重新載入
-  if(d.error==="corrupt" || d.error==="conflict"){ state.blocked=d.error; renderNotice(); updateBadge(t("save.paused")); }
+  if(d.error==="corrupt" || d.error==="conflict"){ state.blocked=d.error; renderNotice(); renderGeneral(); updateBadge(t("save.paused")); }
   else updateBadge(t("save.failPrefix")+d.error);
 }
 async function saveToServer(){
   if(!state.file || state.blocked) return;
-  const d=await serverWrite("/api/save", ()=>({annotations:buildSidecar().annotations}));
-  if(d.ok){ state.dirty=false; updateBadge(t("save.saved",{time:new Date().toLocaleTimeString()})); loadSidebar(); }
+  const seq=edits;                                 // 其它意見直接取 state：空白也要送 ""，伺服器才會移除（buildSidecar 空白時省略）
+  const d=await serverWrite("/api/save", ()=>Object.assign({annotations:buildSidecar().annotations}, state.generalEdited?{generalComment:state.generalComment}:{}));
+  if(d.ok){ if(seq===edits){ state.dirty=false; updateBadge(t("save.saved",{time:new Date().toLocaleTimeString()})); } loadSidebar(); }
   else if(d.error!=="switched") failWrite(d);
 }
 async function loadFile(absPath){
@@ -566,14 +584,27 @@ async function loadFile(absPath){
   try{
     const r=await fetch("/api/file?path="+encodeURIComponent(absPath)+"&token="+encodeURIComponent(state.token));
     const d=await r.json();
-    if(!d.ok){ $("#docInner").innerHTML='<div class="empty">'+escapeHtml(t("msg.openFailPrefix"))+'<b>'+escapeHtml(absPath)+'</b>'+escapeHtml(t("msg.openFailSuffix"))+'<br>'+escapeHtml(d.error)+'</div>'; return; }
+    if(!d.ok){ $("#general").hidden=true; $("#docInner").innerHTML='<div class="empty">'+escapeHtml(t("msg.openFailPrefix"))+'<b>'+escapeHtml(absPath)+'</b>'+escapeHtml(t("msg.openFailSuffix"))+'<br>'+escapeHtml(d.error)+'</div>'; return; }
     state.file=d.path; state.fileName=d.name; state.mdText=d.content; state.annotations=d.annotations||[]; state.dirty=false;
     state.hash=d.hash; state.base=d.updatedAt; state.review=d.review; state.blocked=d.sidecarError?"corrupt":null; state.disk=""; state.flash="";
+    state.generalOld=!("generalComment" in d); state.generalComment=d.generalComment||""; state.generalEdited=false; $("#generalText").value=state.generalComment;
     $("#fileName").textContent="📄 "+d.name;
     $("#pathInput").value=d.path;
-    renderDoc(); renderSide(); updateBadge(); renderDoneBtn(); renderNotice(); loadSidebar();   // 開檔後刷新清單(更新紀錄/未讀/反白)
-  }catch(e){ $("#docInner").innerHTML='<div class="empty">'+escapeHtml(t("msg.noServer"))+escapeHtml(e.message)+'</div>'; }
+    renderDoc(); renderSide(); updateBadge(); renderDoneBtn(); renderNotice(); renderGeneral(); loadSidebar();   // 開檔後刷新清單(更新紀錄/未讀/反白)
+  }catch(e){ $("#general").hidden=true; $("#docInner").innerHTML='<div class="empty">'+escapeHtml(t("msg.noServer"))+escapeHtml(e.message)+'</div>'; }
 }
+
+/* ───────────────────────── 其它意見 ───────────────────────── */
+function renderGeneral(){                          // 開檔成功才顯示（失敗時 loadFile 直接藏）；舊伺服器會丟掉 → 停用；暫停存檔 → 唯讀
+  const g=$("#generalText"); $("#general").hidden=!state.file;
+  g.disabled=state.generalOld; g.readOnly=!!state.blocked;
+  g.dataset.i18nPh=state.generalOld?"general.oldServer":"general.placeholder"; g.placeholder=t(g.dataset.i18nPh);
+}
+$("#generalText").addEventListener("input",e=>{
+  const was=state.generalComment.trim();
+  state.generalComment=e.target.value; state.generalEdited=true; markDirty();
+  if(state.review && !was && state.generalComment.trim()) setReview(false).then(ok=>{ if(ok) flash(t("general.autoCleared")); });   // 從空白變有內容＝新回饋，比照新增待辦
+});
 
 /* ───────────────────────── review-complete record ───────────────────────── */
 function reviewState(){ return !state.review ? "none" : state.review.hash===state.hash ? "done" : "stale"; }
@@ -652,14 +683,16 @@ $("#btnExport").addEventListener("click",()=>{
   const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=state.fileName.replace(/\.md$/i,"")+".review.json"; a.click();
 });
 $("#btnCopy").addEventListener("click",async()=>{
-  if(!state.annotations.length){ alert(t("msg.noAnnotations")); return; }
+  const gc=state.generalComment.trim();
+  if(!state.annotations.length && !gc){ alert(t("msg.noAnnotations")); return; }
   const byLine=(a,b)=>a.line-b.line, K=MDRDiff.kindOf, nm=a=>"【"+t("kind."+K(a)+".name")+"】";
   const open=state.annotations.filter(a=>MDRDiff.isTodo(a)).sort(byLine);                     // 有編號的待辦
   const agree=state.annotations.filter(a=>a.status!=="resolved" && K(a)==="agree").sort(byLine);   // 「同意」另列、不編號
   const done=state.annotations.filter(a=>a.status==="resolved");
   const mk=a=>{ const s=anchorOf(a).state; return s==="changed"||s==="gone"||s==="unverified" ? t("copy."+s) : ""; };   // 原文狀態註記
   const arrow=a=>cmt(a) ? "→ "+cmt(a) : "";        // 意見空白就省略箭頭
-  let out=t("copy.header",{file:state.fileName})+t("copy.summary",{total:state.annotations.length,open:open.length});
+  let out=t("copy.header",{file:state.fileName})+t(gc?"copy.summaryGeneral":"copy.summary",{total:state.annotations.length,open:open.length});
+  if(gc) out+=t("copy.generalSection")+gc+"\n\n";   // 整體意見放在各則之前
   const used=[...new Set(open.map(K))];            // 分類說明：依第一次出現的順序；全是「見說明」就省略
   if(used.some(k=>k!=="see-comment")) out+=t("copy.kindsHead")+used.map(k=>t("copy.kindLine",{name:t("kind."+k+".name"),how:t("kind."+k+".how")})).join("")+"\n";
   open.forEach((a,i)=>{ out+="["+(i+1)+"] L"+a.line+nm(a)+"「"+a.quote+"」"+mk(a)+"\n"+(cmt(a)?arrow(a)+"\n":"")+"\n"; });

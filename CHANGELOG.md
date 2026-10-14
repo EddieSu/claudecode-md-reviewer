@@ -3,6 +3,48 @@
 All notable changes to this project are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.8.0] - 2026-10-14
+
+### Added
+- **Other comments box.** Below the article there is now an **Other comments**
+  box for comments on the whole document that are not tied to a passage. It
+  saves automatically, like annotations, into a new optional top-level
+  `generalComment` field of the `.review.json` (a string; absent when blank).
+  "Copy for Claude" puts it right after the summary line, which then ends with
+  "plus other comments", and it is included in "Export". It has no resolved
+  state and is not counted as a to-do, but writing into an empty box on a
+  document marked complete removes the review-complete record, like adding a
+  to-do annotation. The read-back instructions (README, `md-reviewer --hook`
+  text) now tell the agent to read it.
+
+### Fixed
+- **Quotes are colored as text.** A quote that spans bold text, inline code,
+  links or several paragraphs used to fall back to a line on the block's left;
+  now the quoted text itself is colored, with the kind's badge at the start of
+  each paragraph. The line on the left now only means the quote can no longer be
+  found (or the annotation is on a diagram, which is always marked that way).
+- **Selecting several paragraphs records the first one.** The annotation's line
+  used to come from where the mouse was pressed, so selecting upwards recorded
+  the last paragraph, and starting a drag in empty space (after a line, between
+  paragraphs, on a horizontal rule) recorded a paragraph with no selected text.
+  It now comes from the first paragraph whose text is actually selected.
+- Clicking a highlight inside another highlight now goes to its own card.
+- Typing and then switching documents straight away no longer loses the last
+  characters.
+
+### Changed
+- Resolved highlights are only faded, without a line-through, so a long resolved
+  highlight no longer strikes out whole paragraphs or the unresolved highlights
+  inside it.
+
+### Upgrading
+- After `npm i -g claudecode-md-reviewer`, stop the md-reviewer server that is
+  already running (or restart the machine); the next `md-reviewer` run starts the
+  new one. Until then the page detects the old server and disables the Other
+  comments box, because the old server would drop the text.
+- `generalComment` is kept when 0.6.0 to 0.7.x save the file; 0.5.x and earlier
+  drop it.
+
 ## [0.7.0] - 2026-10-08
 
 ### Added
