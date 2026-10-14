@@ -28,9 +28,14 @@ sequenceDiagram
 - **THEN** the page shows the damaged-sidecar notice and the sidecar file is not modified by any later action on the page
 
 ### Requirement: Writes keep fields they do not manage
-`/api/save` SHALL replace only `annotations` (and `file`, `schema`, `updatedAt`), and
+`/api/save` SHALL replace only `annotations` (and `file`, `schema`, `updatedAt`), plus
+`generalComment` when the request contains the key `generalComment`, and
 `/api/review` SHALL replace only `review` (and `updatedAt`); every other top-level
-field of the existing sidecar SHALL be kept. Each annotation SHALL be written as a
+field of the existing sidecar SHALL be kept. When the request contains
+`generalComment`, a string that is not blank SHALL be written exactly as sent (not
+trimmed), and a blank string or a value that is not a string SHALL remove the field.
+When the request has no `generalComment` key, as with an older page, the field SHALL
+be left as it is. Each annotation SHALL be written as a
 copy of the in-memory annotation object with the known fields overlaid with their
 normalized values, so annotation fields this version does not know are kept too.
 
@@ -69,6 +74,18 @@ recompute it against the known fields before relying on it.
 - **WHEN** a document is marked complete and the user then resolves an annotation
 - **THEN** the sidecar still contains the same `review` field
 
+#### Scenario: Older page keeps other comments
+- **WHEN** the sidecar has `generalComment` and a save request without a `generalComment` key arrives
+- **THEN** the sidecar still has the same `generalComment`
+
+#### Scenario: Blank other comments remove the field
+- **WHEN** a save request has `"generalComment": "  "`
+- **THEN** the sidecar no longer has a `generalComment` field
+
+#### Scenario: Marking complete keeps other comments
+- **WHEN** the sidecar has `generalComment` and the user marks the document review complete
+- **THEN** the sidecar still has the same `generalComment`
+
 #### Scenario: Unknown field from a newer version
 - **WHEN** the sidecar has a top-level field this version does not know and the user saves
 - **THEN** that field is still present after the save
@@ -103,3 +120,4 @@ so that they never conflict with each other.
 #### Scenario: Own consecutive saves
 - **WHEN** the user marks a document complete and immediately adds an annotation in the same tab
 - **THEN** both writes succeed in order
+

@@ -6,9 +6,16 @@ After the reader selects text in the document, offer a small toolbar with Copy a
 ### Requirement: Selection toolbar for article text
 When the user releases the mouse button in the reading pane, the page SHALL show a selection toolbar instead of opening the annotation box, provided the selection is not blank and starts inside a rendered article block.
 "Not blank" means the selected text is non-empty after collapsing whitespace and
-trimming. "Inside a rendered article block" means that walking up from the
-selection's start reaches an element carrying `data-line` inside `#docInner`; the
-welcome screen and the left and right panels never qualify. The check SHALL run
+trimming. The selection's start is the first text node, in document order, whose
+selected part contains a non-whitespace character; the selected part is the text
+from the range's start offset in the start node, up to the range's end offset in the
+end node, and the whole text of every node in between. "Inside a rendered article
+block" means that walking up from that text node reaches an element carrying
+`data-line` inside `#docInner`; the nearest such element is the selection's block. A
+selection that begins in empty space (after the end of a line, in the gap between
+blocks, or on a horizontal rule) therefore belongs to the first block whose text is
+actually selected, and dragging over the same text downwards or upwards gives the same
+block. The welcome screen and the left and right panels never qualify. The check SHALL run
 after the browser has settled the selection, so double-click (one word) and
 triple-click (one paragraph) selections also show the toolbar. A drag selection
 inside a rendered diagram (`.mermaid`) SHALL also show the toolbar, so diagrams can
@@ -17,7 +24,8 @@ still be annotated.
 The toolbar SHALL contain exactly two buttons, "Copy" / 「複製」 and "Annotate" /
 「加註」. It SHALL NOT appear while the annotation box is open, while the diagram
 zoom view is open, or when the mouse is released on the toolbar itself, the
-annotation box, the back-to-top button or a diagram's zoom button.
+annotation box, the back-to-top button, a diagram's zoom button or the "Other
+comments" box (see `general-comment`).
 
 ```mermaid
 flowchart TD
@@ -62,6 +70,18 @@ flow: select text, then press "Copy" or "Annotate".
 - **WHEN** the user drags across a phrase in a paragraph and releases the mouse
 - **THEN** the selection toolbar with "Copy" and "Annotate" appears above the selection
 - **AND** the annotation box does not open and keyboard focus has not moved
+
+#### Scenario: Same block in both directions
+- **WHEN** the user selects the third to fifth paragraphs once by dragging downwards and once by dragging upwards
+- **THEN** both times the toolbar records the third paragraph's line and the same quote
+
+#### Scenario: Drag starting in empty space
+- **WHEN** the user starts dragging to the right of the last line of a paragraph and releases the mouse inside the next paragraph
+- **THEN** the toolbar records the next paragraph's line, because no text of the first paragraph is selected
+
+#### Scenario: Drag starting on a horizontal rule
+- **WHEN** the user starts dragging on a horizontal rule and releases the mouse inside the paragraph after it
+- **THEN** the toolbar records that paragraph's line
 
 #### Scenario: Toolbar moves with the text
 - **WHEN** the toolbar is shown and the user scrolls the document a little
