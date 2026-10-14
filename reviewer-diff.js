@@ -166,6 +166,18 @@ function textDiff(oldS,newS){
   return out;
 }
 
+// 在依文件順序排好的文字片段裡找引文：空白全部拿掉再比，取第一個；起點必須落在前 first 個片段（被加註的區塊）。
+// 回 [[片段序號, 起, 迄], …]（迄不含）：頭片段起點到尾、中間片段整個（含只有空白的，不留縫）、尾片段開頭到終點；不回空範圍。找不到回 null。
+function locateQuote(texts, quote, first){
+  const q=String(quote||"").replace(/\s+/g,""); if(!q) return null;
+  let s=""; const at=[];                                       // s=拿掉空白後的字；at[k]=第 k 個字的 [片段, 位置]
+  texts.forEach((t,i)=>{ for(let j=0;j<t.length;j++) if(!/\s/.test(t[j])){ s+=t[j]; at.push([i,j]); } });
+  const k=s.indexOf(q); if(k<0 || at[k][0]>=first) return null;   // 第一個出現處不在區塊內，後面的更不可能
+  const [i0,j0]=at[k], [i1,j1]=at[k+q.length-1], out=[];
+  for(let i=i0;i<=i1;i++){ const a=i===i0?j0:0, b=i===i1?j1+1:texts[i].length; if(b>a) out.push([i,a,b]); }
+  return out;
+}
+
 // 註解分類：kind 值與符號（順序＝加註框的排列）。名稱、提示、處理方式在語系檔 kind.<值>.*，顏色在 CSS。
 const KINDS = [
   { kind:"see-comment", sym:"※" }, { kind:"agree", sym:"✓" },
@@ -185,6 +197,6 @@ function newAnnotation(f){
 // 存檔：以記憶體裡的註解物件為底（陌生欄位、kind／color／context 的原值照帶，沒有的不補），再正規化已知欄位。
 function annToSave(a){ return Object.assign({}, a, { comment:a.comment==null?"":String(a.comment) }); }
 
-const api = { normText, key, sim, typeOf, contextAt, reanchor, textDiff, KINDS, kindOf, isTodo, newAnnotation, annToSave };
+const api = { normText, key, sim, typeOf, contextAt, reanchor, textDiff, locateQuote, KINDS, kindOf, isTodo, newAnnotation, annToSave };
 if(typeof module!=="undefined" && module.exports) module.exports=api; else root.MDRDiff=api;
 })(typeof window!=="undefined" ? window : this);
