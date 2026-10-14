@@ -251,20 +251,24 @@ save)" / 「可留空；想補充就寫在這裡…（Ctrl+Enter 儲存）」. T
 ### Requirement: Kind is recognizable without color
 Every place that shows an annotation's kind SHALL show the kind's symbol together with its color, and SHALL show the kind's name wherever there is room for text, so any two kinds can be told apart without relying on color.
 
-- **Highlights**: each `<mark>` SHALL have the class `anno k-<kindOf(a)>` and a
-  `data-sym` attribute holding the symbol from `KINDS` (never from the sidecar). A CSS
-  `::before` SHALL draw a small round badge at the start of the highlight, filled with
-  the kind's dot color and showing the symbol. Because the badge is generated content,
-  it SHALL NOT be selectable, SHALL NOT be copied and SHALL NOT affect quote matching.
-  The resolved style (faded with a line-through) SHALL stay as before.
+- **Highlights**: each `<mark>` SHALL have the class `anno k-<kindOf(a)>`. The first
+  `<mark>` of a highlight in each block SHALL also have a `data-sym` attribute holding
+  the symbol from `KINDS` (never from the sidecar), as defined by
+  `quote-highlighting`. A CSS `::before` on marks with `data-sym` SHALL draw a small
+  round badge there, filled with the kind's dot color and showing the symbol. Because
+  the badge is generated content, it SHALL NOT be selectable, SHALL NOT be copied and
+  SHALL NOT affect quote matching. A resolved highlight SHALL be faded and SHALL NOT
+  have a line-through, so a long resolved highlight does not strike out whole
+  paragraphs and does not strike out unresolved highlights nested inside it.
 - **Kind picker and the card's kind menu**: the same badge followed by the kind name.
 - **Highlight tooltip**: "【<kind name>】<comment>", or "【<kind name>】" when the
   comment is empty. After a language switch the highlights SHALL be re-applied so the
   tooltips show the new language.
 - **Cards**: the card's comment line SHALL be omitted when the comment is empty.
-- **Whole-block marks**: when a quote cannot be wrapped in a highlight (for example it
-  spans bold text, a link or paragraphs) and the block is marked with a line on its
-  left instead, the page SHALL record that annotation's id in an id-keyed set in page
+- **Whole-block marks**: when a quote cannot be found (for example the quoted text was
+  later removed from the document, or the annotation is on a diagram, see
+  `quote-highlighting`) and the block is marked with a line on its left instead, the
+  page SHALL record that annotation's id in an id-keyed set in page
   state (`state.blockHl`), not on the annotation. A card whose kind is `delete-text`
   and whose id is in that set SHALL show, under its quote, "Only the quoted text above
   is to be deleted. It can't be marked exactly in the article, so the whole block is
@@ -291,8 +295,12 @@ by color or by symbol — in the highlights, the kind picker and the cards.
 - **WHEN** the user switches the interface language while a document with annotations is open
 - **THEN** hovering a highlight shows the kind name in the new language
 
+#### Scenario: Resolved highlight is not struck out
+- **WHEN** an annotation spanning two paragraphs is resolved
+- **THEN** the text of both paragraphs is shown faded and without a line-through
+
 #### Scenario: Delete this text on a whole-block mark
-- **WHEN** a "Delete this text" annotation's quote spans a link, so its block is marked with a left line
+- **WHEN** a "Delete this text" annotation's quote is no longer found in its block, so the block is marked with a left line
 - **THEN** its card shows the note that only the quoted text is to be deleted, and the annotation object has no new field
 
 #### Scenario: Achromatopsia emulation
@@ -330,27 +338,36 @@ The "📋 Copy for Claude" text SHALL label every annotation with its kind name,
 The text SHALL be built as follows:
 
 1. The existing header and summary line; the summary's open count SHALL be the number
-   of to-do annotations (see "Agree annotations are not to-dos").
-2. A kind explanation section, headed 「分類說明（每則若另有意見，以意見補充的條件為準）：」 /
+   of to-do annotations (see "Agree annotations are not to-dos"). When the "Other
+   comments" text (see `general-comment`) is not blank, the summary line SHALL end
+   with 「，另有其它意見」 / ", plus other comments".
+2. When the "Other comments" text is not blank, a section headed 「其它意見：」 /
+   "Other comments:" followed by the text with leading and trailing whitespace
+   removed, and an empty line. Otherwise this section SHALL be omitted.
+3. A kind explanation section, headed 「分類說明（每則若另有意見，以意見補充的條件為準）：」 /
    "How to handle each kind (where an annotation also has a comment, the conditions in
    the comment take precedence):", with one line `- <kind name>：<handling text>` for
    each kind used by the numbered items, in the order each kind first appears among
    them. The text SHALL come from the locale's `kind.<value>.how` in the interface
    language. The section SHALL be omitted when every numbered item is "See comment" or
    there are no numbered items.
-3. The numbered items: every to-do annotation, sorted by line, each as
+4. The numbered items: every to-do annotation, sorted by line, each as
    `[<n>] L<line>【<kind name>】「<quote>」<match-state marker>` followed by a line
    `→ <comment>`; the `→` line SHALL be omitted when the comment is empty. The first
    line of each item SHALL still end with the match-state marker required by
    `annotation-revision-diff`.
-4. When there are unresolved "Agree" annotations, an unnumbered section titled
+5. When there are unresolved "Agree" annotations, an unnumbered section titled
    「（同意，不必處理）」 / "(agree — no action needed)", with one line
    `- L<line>「<quote>」<match-state marker>→ <comment>` each.
-5. The resolved section as before, with each line
+6. The resolved section as before, with each line
    `- L<line>【<kind name>】「<quote>」<match-state marker>→ <comment>`.
 
-In list lines (steps 4 and 5), the `→ <comment>` part SHALL be omitted when the
-comment is empty.
+In list lines (steps 5 and 6), the `→ <comment>` part SHALL be omitted when the
+comment is empty. When there are no annotations and the "Other comments" text is
+blank, pressing the button SHALL show 「還沒有任何註解或其它意見」 / "No annotations or
+other comments yet" and copy nothing; when there are no annotations but the "Other
+comments" text is not blank, the text SHALL be copied. The button's tooltip SHALL say
+that it copies the unresolved annotations and the other comments.
 
 Example (Traditional Chinese interface, handling texts shortened here):
 
@@ -384,6 +401,18 @@ Example (Traditional Chinese interface, handling texts shortened here):
 #### Scenario: Mixed kinds
 - **WHEN** the user copies annotations matching the example above
 - **THEN** the copied text has the structure of the example: the summary counts 4 open, the explanation section lists the four kinds used in first-appearance order, and the Agree annotation is in its own unnumbered section
+
+#### Scenario: Other comments come first
+- **WHEN** the "Other comments" box holds "整體結構太鬆" and there are two to-do annotations
+- **THEN** the summary line ends with 「，另有其它意見」, and the 「其它意見：」 section with "整體結構太鬆" comes right after it, before the kind explanation and the numbered items
+
+#### Scenario: Only other comments
+- **WHEN** a document has no annotations and its "Other comments" box is not blank
+- **THEN** pressing "📋 Copy for Claude" copies the header, a summary of 0 annotations ending with 「，另有其它意見」 and the 「其它意見：」 section
+
+#### Scenario: Nothing to copy
+- **WHEN** a document has no annotations and its "Other comments" box is blank
+- **THEN** pressing "📋 Copy for Claude" shows that there are no annotations or other comments yet and copies nothing
 
 #### Scenario: Only See comment items
 - **WHEN** every numbered item is "See comment"
